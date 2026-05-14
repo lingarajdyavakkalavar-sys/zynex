@@ -1,0 +1,493 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum ExamType {
+  GATE
+  CAT
+  SEMESTER
+  UNIVERSITY
+}
+
+enum Status {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  MARKED_FOR_REVISION
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuizMode {
+  PRACTICE
+  TIMED_TEST
+  REVISION
+}
+
+enum SourceType {
+  PDF_UPLOAD
+  PASTED_TEXT
+  WEB_URL
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  imageUrl      String?
+  role          Role      @default(STUDENT)
+  
+  branchId      String?
+  semesterId    String?
+  examType      ExamType  @default(UNIVERSITY)
+  targetExam    String?
+  phone         String?
+  bio           String?
+  studyHours    Float     @default(0)
+  streakDays    Int       @default(0)
+  lastActiveAt  DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  branch        Branch?    @relation(fields: [branchId], references: [id])
+  semester      Semester?  @relation(fields: [semesterId], references: [id])
+  
+  studySessions   StudySession[]
+  revisionNotes   RevisionNote[]
+  formulaSheets   FormulaSheet[]
+  flashcards      Flashcard[]
+  mindMaps        MindMap[]
+  mcqAttempts     MCQAttempt[]
+  quizSessions    QuizSession[]
+  studyPlanners   StudyPlanner[]
+  readinessScores ReadinessScore[]
+  backlogTopics   BacklogTopic[]
+  activityLogs   ActivityLog[]
+  bookmarks      Bookmark[]
+  topicProgress  TopicProgress[]
+  timers         StudyTimer[]
+
+  @@index([email])
+  @@index([role])
+  @@index([branchId])
+  @@index([semesterId])
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  semesters Semester[]
+  users     User[]
+
+  @@index([code])
+}
+
+model Semester {
+  id        String   @id @default(cuid())
+  number    Int
+  branchId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch   Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  subjects Subject[]
+  users    User[]
+
+  @@unique([number, branchId])
+  @@index([branchId])
+}
+
+model Subject {
+  id         String    @id @default(cuid())
+  name       String
+  code       String
+  semesterId String
+  examType   ExamType  @default(UNIVERSITY)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  semester Semester  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  syllabi  Syllabus[]
+
+  @@unique([code, semesterId])
+  @@index([semesterId])
+  @@index([examType])
+}
+
+model Syllabus {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  subjectId   String
+  sourceType  SourceType  @default(PASTED_TEXT)
+  sourceUrl   String?
+  fileName    String?
+  isPublished Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  units   Unit[]
+
+  @@index([subjectId])
+  @@index([isPublished])
+}
+
+model Unit {
+  id         String   @id @default(cuid())
+  title      String
+  order      Int
+  syllabusId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  syllabus Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
+  topics   Topic[]
+
+  @@unique([syllabusId, order])
+  @@index([syllabusId])
+}
+
+model Topic {
+  id         String   @id @default(cuid())
+  title      String
+  content    String?  @db.Text
+  order      Int
+  unitId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  unit             Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  topicProgress    TopicProgress[]
+  revisionNotes    RevisionNote[]
+  formulaSheets    FormulaSheet[]
+  flashcards       Flashcard[]
+  mcqs             MCQ[]
+  studySessions    StudySession[]
+  backlogTopics    BacklogTopic[]
+  bookmarks        Bookmark[]
+  timers           StudyTimer[]
+
+  @@unique([unitId, order])
+  @@index([unitId])
+}
+
+model TopicProgress {
+  id            String    @id @default(cuid())
+  userId        String
+  topicId       String
+  status        Status    @default(NOT_STARTED)
+  masteryScore  Int       @default(0)
+  timeSpent     Int       @default(0)
+  lastStudiedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
+  @@index([status])
+}
+
+model StudySession {
+  id        String   @id @default(cuid())
+  userId    String
+  topicId   String
+  startTime DateTime @default(now())
+  endTime   DateTime?
+  duration  Int      @default(0)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([topicId])
+  @@index([startTime])
+}
+
+model RevisionNote {
+  id        String   @id @default(cuid())
+  userId    String
+  topicId   String
+  title     String
+  content   String   @db.Text
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([topicId])
+}
+
+model FormulaSheet {
+  id        String   @id @default(cuid())
+  userId    String
+  topicId   String
+  title     String
+  formulas  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([topicId])
+}
+
+model Flashcard {
+  id         String    @id @default(cuid())
+  userId     String
+  topicId    String
+  front      String
+  back       String
+  difficulty Difficulty @default(MEDIUM)
+  nextReview DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([topicId])
+  @@index([nextReview])
+}
+
+model MindMap {
+  id       String   @id @default(cuid())
+  userId   String
+  topicId  String
+  title    String
+  nodes    Json
+  edges    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([topicId])
+}
+
+model MCQ {
+  id           String      @id @default(cuid())
+  topicId      String
+  question     String      @db.Text
+  explanation  String?     @db.Text
+  difficulty   Difficulty  @default(MEDIUM)
+  correctIndex Int
+  tags         String[]
+  
+  examType     ExamType    @default(UNIVERSITY)
+  year         Int?
+  section      String?
+  marks        Int         @default(1)
+  negativeMarks Float      @default(0.33)
+  isPreviousYear Boolean  @default(false)
+  questionType String?
+  answer       String?
+  units        Float?
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  topic   Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  options MCQOption[]
+  attempts MCQAttempt[]
+
+  @@index([topicId])
+  @@index([difficulty])
+  @@index([examType])
+  @@index([year])
+  @@index([section])
+}
+
+model MCQOption {
+  id     String @id @default(cuid())
+  mcqId  String
+  text   String
+  index  Int
+
+  mcq MCQ @relation(fields: [mcqId], references: [id], onDelete: Cascade)
+
+  @@unique([mcqId, index])
+  @@index([mcqId])
+}
+
+model MCQAttempt {
+  id          String    @id @default(cuid())
+  userId      String
+  mcqId       String
+  quizSessionId String?
+  selectedIndex Int?
+  isCorrect   Boolean
+  timeSpent   Int       @default(0)
+  attemptedAt DateTime  @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mcq         MCQ         @relation(fields: [mcqId], references: [id], onDelete: Cascade)
+  quizSession QuizSession? @relation(fields: [quizSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([mcqId])
+  @@index([attemptedAt])
+}
+
+model QuizSession {
+  id          String    @id @default(cuid())
+  userId      String
+  mode        QuizMode  @default(PRACTICE)
+  topicIds    String[]
+  totalQuestions Int
+  correctCount Int      @default(0)
+  duration    Int
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts MCQAttempt[]
+
+  @@index([userId])
+  @@index([startedAt])
+}
+
+model StudyPlanner {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String
+  targetDate      DateTime
+  dailyHours      Float    @default(4)
+  examType        ExamType @default(UNIVERSITY)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyTargets DailyTarget[]
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model DailyTarget {
+  id          String   @id @default(cuid())
+  plannerId   String
+  date        DateTime @db.Date
+  targetHours Float
+  completedHours Float @default(0)
+  topics      Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  planner StudyPlanner @relation(fields: [plannerId], references: [id], onDelete: Cascade)
+
+  @@unique([plannerId, date])
+  @@index([plannerId])
+}
+
+model ReadinessScore {
+  id          String   @id @default(cuid())
+  userId      String
+  subjectId   String
+  score       Float
+  calculatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subjectId])
+  @@index([userId])
+}
+
+model BacklogTopic {
+  id          String   @id @default(cuid())
+  userId      String
+  topicId     String
+  priority    Int      @default(1)
+  estimatedHours Float @default(2)
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  topicId   String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model StudyTimer {
+  id          String    @id @default(cuid())
+  userId      String
+  topicId     String?
+  sessionType String    @default("study")
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  duration    Int       @default(0)
+  isActive    Boolean   @default(true)
+  pausedAt    DateTime?
+  totalPaused Int       @default(0)
+  
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([topicId])
+  @@index([startTime])
+}
