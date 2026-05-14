@@ -36,14 +36,24 @@ enum QuizMode {
   REVISION
   SECTIONAL
   FULL_TEST
+  PREVIOUS_YEAR
+  MOCK_TEST
 }
 
 enum SourceType {
+  OFFICIAL_PAPER
+  ANSWER_KEY
+  SYLLABUS
   PDF_UPLOAD
   PASTED_TEXT
   WEB_URL
-  SYLLABUS
   AI_GENERATED
+}
+
+enum QuestionType {
+  MCQ
+  MSQ
+  NAT
 }
 
 model User {
@@ -52,7 +62,6 @@ model User {
   name          String?
   imageUrl      String?
   role          Role      @default(STUDENT)
-  
   examType      ExamType  @default(GATE)
   targetExam    String?
   phone         String?
@@ -60,226 +69,326 @@ model User {
   studyHours    Float     @default(0)
   streakDays    Int       @default(0)
   lastActiveAt  DateTime?
-  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  studySessions   StudySession[]
-  revisionNotes   RevisionNote[]
-  formulaSheets   FormulaSheet[]
-  flashcards      Flashcard[]
-  mindMaps        MindMap[]
-  mcqAttempts     MCQAttempt[]
-  quizSessions    QuizSession[]
-  studyPlanners   StudyPlanner[]
-  readinessScores ReadinessScore[]
-  backlogTopics   BacklogTopic[]
-  activityLogs   ActivityLog[]
+  mcqAttempts    MCQAttempt[]
+  quizSessions   QuizSession[]
+  studySessions  StudySession[]
+  revisionNotes  RevisionNote[]
+  flashcards     Flashcard[]
   bookmarks      Bookmark[]
+  activityLogs   ActivityLog[]
+  studyTimers    StudyTimer[]
+  studyPlanners  StudyPlanner[]
+  materials      UploadedMaterial[]
   topicProgress  TopicProgress[]
-  timers         StudyTimer[]
-  uploadedMaterials UploadedMaterial[]
 
   @@index([email])
-  @@index([role])
   @@index([examType])
 }
 
-model Branch {
+model GATEBranch {
   id        String   @id @default(cuid())
-  name      String   @unique
   code      String   @unique
-  examType  ExamType @default(GATE)
+  name      String
+  fullName  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  semesters Semester[]
+  subjects GATESubject[]
+  papers   GATEPaper[]
+  topics   GATETopic[]
 
   @@index([code])
-  @@index([examType])
 }
 
-model Semester {
+model GATESubject {
   id        String   @id @default(cuid())
-  number    Int
+  code      String
+  name      String
   branchId  String
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  branch   Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  subjects Subject[]
+  branch GATEBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  topics  GATETopic[]
 
-  @@unique([number, branchId])
+  @@unique([code, branchId])
   @@index([branchId])
 }
 
-model Subject {
-  id         String    @id @default(cuid())
-  name       String
-  code       String
-  semesterId String?
-  examType   ExamType  @default(GATE)
-  branchCode String?   // CS, EC, EE, ME (for GATE)
-  section    String?   // VARC, DILR, QA (for CAT)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  semester Semester?  @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  syllabi  Syllabus[]
-
-  @@unique([code, examType])
-  @@index([examType])
-  @@index([branchCode])
-  @@index([section])
-}
-
-model Syllabus {
-  id          String      @id @default(cuid())
+model GATETopic {
+  id          String   @id @default(cuid())
   title       String
-  description String?
-  subjectId   String
-  examType    ExamType   @default(GATE)
-  branchCode  String?     // CS, EC, EE, ME
-  section     String?     // VARC, DILR, QA
-  sourceType  SourceType  @default(SYLLABUS)
-  sourceUrl   String?
-  fileName    String?
-  isPublished Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  description String?  @db.Text
+  order       Int
+  subjectId   String?
+  branchId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  units   Unit[]
+  branch  GATEBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  subject GATESubject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  progress TopicProgress[]
 
+  @@index([branchId])
   @@index([subjectId])
-  @@index([isPublished])
-  @@index([examType])
-  @@index([branchCode])
-  @@index([section])
-}
-
-model Unit {
-  id         String   @id @default(cuid())
-  title      String
-  order      Int
-  syllabusId String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  syllabus Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
-  topics   Topic[]
-
-  @@unique([syllabusId, order])
-  @@index([syllabusId])
-}
-
-model Topic {
-  id         String   @id @default(cuid())
-  title      String
-  content    String?  @db.Text
-  order      Int
-  unitId     String
-  examType   ExamType @default(GATE)
-  branchCode String?   // CS, EC, EE, ME
-  section    String?   // VARC, DILR, QA (for CAT)
-  subsection String?   // RC, VA, VR, DI, LR, AR, AL, GM, MM
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  unit             Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  topicProgress    TopicProgress[]
-  revisionNotes    RevisionNote[]
-  formulaSheets    FormulaSheet[]
-  flashcards       Flashcard[]
-  mcqs             MCQ[]
-  studySessions    StudySession[]
-  backlogTopics    BacklogTopic[]
-  bookmarks        Bookmark[]
-  timers           StudyTimer[]
-
-  @@unique([unitId, order])
-  @@index([unitId])
-  @@index([examType])
-  @@index([branchCode])
-  @@index([section])
 }
 
 model TopicProgress {
   id            String    @id @default(cuid())
   userId        String
-  topicId       String
+  gateTopicId   String?
+  examType      ExamType  @default(GATE)
   status        Status    @default(NOT_STARTED)
   masteryScore  Int       @default(0)
   timeSpent     Int       @default(0)
-  timesStudied  Int       @default(0)
+  correctAttempts Int     @default(0)
+  totalAttempts  Int      @default(0)
+  accuracy       Float    @default(0)
   lastStudiedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gateTopic GATETopic? @relation(fields: [gateTopicId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, topicId])
+  @@unique([userId, gateTopicId])
   @@index([userId])
-  @@index([topicId])
+  @@index([examType])
+}
+
+model GATEPaper {
+  id          String   @id @default(cuid())
+  year        Int
+  session     String?
+  paperCode   String
+  branchId    String
+  setCode     String?
+  pdfUrl      String?
+  isOfficial  Boolean  @default(true)
+  totalMarks  Int      @default(100)
+  duration    Int      @default(180)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch GATEBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([year, paperCode, setCode])
+  @@index([branchId])
+  @@index([year])
+}
+
+model GATEPaperSection {
+  id            String @id @default(cuid())
+  paperId       String
+  name          String
+  order         Int
+  marks         Int    @default(15)
+  questionCount Int    @default(10)
+
+  @@index([paperId])
+}
+
+model CATSection {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?  @db.Text
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subsections CATSubsection[]
+}
+
+model CATSubsection {
+  id          String   @id @default(cuid())
+  code        String
+  name        String
+  sectionId   String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  section CATSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  topics  CATTopic[]
+
+  @@unique([code, sectionId])
+  @@index([sectionId])
+}
+
+model CATTopic {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?  @db.Text
+  order        Int
+  subsectionId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subsection CATSubsection @relation(fields: [subsectionId], references: [id], onDelete: Cascade)
+
+  @@index([subsectionId])
+}
+
+model CATPaper {
+  id              String   @id @default(cuid())
+  year            Int
+  slot            String?
+  pdfUrl          String?
+  isOfficial      Boolean  @default(true)
+  totalQuestions  Int      @default(66)
+  duration        Int      @default(120)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([year, slot])
+  @@index([year])
+}
+
+model MCQ {
+  id              String        @id @default(cuid())
+  question        String        @db.Text
+  options         Json
+  correctAnswer   Int
+  explanation     String?       @db.Text
+  examType        ExamType      @default(GATE)
+  difficulty      Difficulty    @default(MEDIUM)
+  tags            String[]
+  
+  // GATE
+  gateTopicId     String?
+  gateBranchCode  String?
+  year            Int?
+  paperCode       String?
+  setCode         String?
+  marks           Int           @default(1)
+  negativeMarks   Float         @default(0.33)
+  questionType    QuestionType   @default(MCQ)
+  isPreviousYear  Boolean       @default(false)
+  
+  // CAT
+  catTopicId      String?
+  catSectionCode  String?
+  catSubsectionCode String?
+  slot            String?
+  
+  // Source
+  sourceType      SourceType    @default(OFFICIAL_PAPER)
+  sourceUrl       String?
+  aiExplanation   String?       @db.Text
+  
+  avgTimeSpent    Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  attempts MCQAttempt[]
+
+  @@index([examType])
+  @@index([year])
+  @@index([gateBranchCode])
+  @@index([catSectionCode])
+  @@index([difficulty])
+  @@index([gateTopicId])
+  @@index([catTopicId])
+}
+
+model MCQAttempt {
+  id              String    @id @default(cuid())
+  userId          String
+  mcqId           String
+  quizSessionId   String?
+  selectedAnswer  Int?
+  isCorrect       Boolean
+  marksObtained   Float     @default(0)
+  negativeMarks   Float     @default(0)
+  timeSpent       Int       @default(0)
+  isMarkedForReview Boolean @default(false)
+  isBookmarked    Boolean   @default(false)
+  startedAt       DateTime  @default(now())
+  submittedAt     DateTime?
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mcq         MCQ         @relation(fields: [mcqId], references: [id], onDelete: Cascade)
+  quizSession QuizSession? @relation(fields: [quizSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([mcqId])
+  @@index([quizSessionId])
+}
+
+model QuizSession {
+  id              String    @id @default(cuid())
+  userId          String
+  examType        ExamType  @default(GATE)
+  mode            QuizMode  @default(PRACTICE)
+  sourceType      String    @default("PRACTICE")
+  year            Int?
+  branchCode      String?
+  sectionCode     String?
+  totalQuestions  Int
+  attemptedCount  Int       @default(0)
+  correctCount    Int       @default(0)
+  markedForReview Int       @default(0)
+  totalMarks      Float     @default(0)
+  obtainedMarks   Float     @default(0)
+  negativeMarks   Float     @default(0)
+  duration        Int
+  remainingTime   Int       @default(0)
+  isPaused        Boolean   @default(false)
+  pausedAt        DateTime?
+  totalPaused     Int       @default(0)
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  status          String    @default("IN_PROGRESS")
+  autoSubmitted   Boolean   @default(false)
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts MCQAttempt[]
+
+  @@index([userId])
+  @@index([examType])
   @@index([status])
+  @@index([year])
 }
 
 model StudySession {
   id        String   @id @default(cuid())
   userId    String
-  topicId   String
+  topicId   String?
   startTime DateTime @default(now())
   endTime   DateTime?
   duration  Int      @default(0)
   notes     String?  @db.Text
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([topicId])
-  @@index([startTime])
 }
 
 model RevisionNote {
   id        String   @id @default(cuid())
   userId    String
-  topicId   String
+  topicId   String?
   title     String
   content   String   @db.Text
   tags      String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([topicId])
-}
-
-model FormulaSheet {
-  id        String   @id @default(cuid())
-  userId    String
-  topicId   String
-  title     String
-  formulas  Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([topicId])
 }
 
 model Flashcard {
   id         String    @id @default(cuid())
   userId     String
-  topicId    String
+  topicId    String?
   front      String
   back       String
   difficulty Difficulty @default(MEDIUM)
@@ -288,233 +397,22 @@ model Flashcard {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([topicId])
-  @@index([nextReview])
-}
-
-model MindMap {
-  id       String   @id @default(cuid())
-  userId   String
-  topicId  String
-  title    String
-  nodes    Json
-  edges    Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([topicId])
-}
-
-model UploadedMaterial {
-  id        String   @id @default(cuid())
-  userId    String
-  title     String
-  fileName  String?
-  fileUrl   String?
-  content   String?  @db.Text
-  sourceType SourceType @default(PDF_UPLOAD)
-  topicCount Int     @default(0)
-  mcqCount   Int     @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([createdAt])
-}
-
-model MCQ {
-  id           String      @id @default(cuid())
-  topicId      String
-  question     String      @db.Text
-  explanation  String?     @db.Text
-  difficulty   Difficulty  @default(MEDIUM)
-  correctIndex Int
-  tags         String[]
-  
-  examType     ExamType    @default(GATE)
-  branchCode   String?     // CS, EC, EE, ME (for GATE)
-  section      String?     // VARC, DILR, QA (for CAT)
-  subsection   String?     // RC, VA, AR, etc.
-  
-  // GATE specific
-  year         Int?
-  marks        Int         @default(1) // 1 or 2
-  negativeMarks Float      @default(0.33)
-  isPreviousYear Boolean  @default(false)
-  questionType String?     // MCQ, MSQ, NAT
-  
-  // CAT specific  
-  answer       String?     // For NAT type
-  
-  source       SourceType  @default(AI_GENERATED)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  topic   Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  options MCQOption[]
-  attempts MCQAttempt[]
-
-  @@index([topicId])
-  @@index([difficulty])
-  @@index([examType])
-  @@index([branchCode])
-  @@index([section])
-  @@index([subsection])
-  @@index([year])
-}
-
-model MCQOption {
-  id     String @id @default(cuid())
-  mcqId  String
-  text   String
-  index  Int
-
-  mcq MCQ @relation(fields: [mcqId], references: [id], onDelete: Cascade)
-
-  @@unique([mcqId, index])
-  @@index([mcqId])
-}
-
-model MCQAttempt {
-  id          String    @id @default(cuid())
-  userId      String
-  mcqId       String
-  quizSessionId String?
-  selectedIndex Int?
-  isCorrect   Boolean
-  timeSpent   Int       @default(0)
-  attemptedAt DateTime  @default(now())
-
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mcq         MCQ         @relation(fields: [mcqId], references: [id], onDelete: Cascade)
-  quizSession QuizSession? @relation(fields: [quizSessionId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([mcqId])
-  @@index([attemptedAt])
-}
-
-model QuizSession {
-  id            String    @id @default(cuid())
-  userId        String
-  examType      ExamType  @default(GATE)
-  mode          QuizMode  @default(PRACTICE)
-  topicIds      String[]
-  subjectId     String?
-  section       String?   // VARC, DILR, QA (for CAT)
-  totalQuestions Int
-  correctCount  Int       @default(0)
-  duration      Int       // Total duration in seconds
-  
-  // Timer persistence
-  remainingTime Int       @default(0)  // Remaining seconds
-  isPaused      Boolean   @default(false)
-  pausedAt      DateTime?
-  totalPaused   Int       @default(0)
-  
-  startedAt     DateTime  @default(now())
-  completedAt   DateTime?
-  status        String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, TIMEOUT, PAUSED
-
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attempts MCQAttempt[]
-
-  @@index([userId])
-  @@index([startedAt])
-  @@index([status])
-  @@index([examType])
-  @@index([mode])
-}
-
-model StudyPlanner {
-  id              String   @id @default(cuid())
-  userId          String
-  examType        ExamType @default(GATE)
-  branchCode      String?
-  title           String
-  targetDate      DateTime
-  dailyHours      Float    @default(4)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dailyTargets DailyTarget[]
-
-  @@index([userId])
-  @@index([isActive])
-  @@index([examType])
-}
-
-model DailyTarget {
-  id          String   @id @default(cuid())
-  plannerId   String
-  date        DateTime @db.Date
-  targetHours Float
-  completedHours Float @default(0)
-  topics      Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  planner StudyPlanner @relation(fields: [plannerId], references: [id], onDelete: Cascade)
-
-  @@unique([plannerId, date])
-  @@index([plannerId])
-}
-
-model ReadinessScore {
-  id          String   @id @default(cuid())
-  userId      String
-  subjectId   String
-  score       Float
-  calculatedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, subjectId])
-  @@index([userId])
-}
-
-model BacklogTopic {
-  id          String   @id @default(cuid())
-  userId      String
-  topicId     String
-  priority    Int      @default(1)
-  estimatedHours Float @default(2)
-  reason      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, topicId])
-  @@index([userId])
-  @@index([topicId])
 }
 
 model Bookmark {
   id        String   @id @default(cuid())
   userId    String
-  topicId   String
+  mcqId     String?
+  topicId   String?
   notes     String?
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, topicId])
   @@index([userId])
-  @@index([topicId])
 }
 
 model ActivityLog {
@@ -542,10 +440,43 @@ model StudyTimer {
   pausedAt    DateTime?
   totalPaused Int       @default(0)
   
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic Topic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([topicId])
   @@index([startTime])
+}
+
+model StudyPlanner {
+  id              String   @id @default(cuid())
+  userId          String
+  examType        ExamType @default(GATE)
+  branchCode      String?
+  title           String
+  targetDate      DateTime
+  dailyHours      Float    @default(4)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UploadedMaterial {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  fileName    String?
+  fileUrl     String?
+  content     String?  @db.Text
+  sourceType  SourceType @default(PDF_UPLOAD)
+  topicCount  Int     @default(0)
+  mcqCount    Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
