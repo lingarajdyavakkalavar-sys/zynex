@@ -123,9 +123,37 @@ export default function CatTestPage() {
     return questions;
   };
 
-  const handleStartTest = () => {
-    const q = selectedSection === 'all' ? generateMockQuestions('all') : generateMockQuestions(selectedSection);
-    setQuestions(q);
+  const handleStartTest = async () => {
+    try {
+      const res = await fetch('/api/quiz/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examType: 'CAT',
+          mode: selectedSection === 'all' ? 'full' : 'sectional',
+          sectionCode: selectedSection !== 'all' ? selectedSection : undefined,
+          totalQuestions: selectedSection === 'all' ? 66 : selectedSection === 'VARC' ? 24 : selectedSection === 'DILR' ? 20 : 22,
+          duration: selectedSection === 'all' ? 120 * 60 : 40 * 60,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.questions && data.questions.length > 0) {
+          setQuestions(data.questions);
+        } else {
+          const fallback = selectedSection === 'all' ? generateMockQuestions('all') : generateMockQuestions(selectedSection);
+          setQuestions(fallback);
+        }
+      } else {
+        const fallback = selectedSection === 'all' ? generateMockQuestions('all') : generateMockQuestions(selectedSection);
+        setQuestions(fallback);
+      }
+    } catch (e) {
+      const fallback = selectedSection === 'all' ? generateMockQuestions('all') : generateMockQuestions(selectedSection);
+      setQuestions(fallback);
+    }
+
     setTestMode('test');
     setTimeRemaining(selectedSection === 'all' ? 120 * 60 : 40 * 60);
   };

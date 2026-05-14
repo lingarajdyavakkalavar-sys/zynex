@@ -101,9 +101,6 @@ export default function GateTestPage() {
   };
 
   const handleStartTest = async () => {
-    const mockQuestions = generateMockQuestions(65);
-    setQuestions(mockQuestions);
-
     try {
       const res = await fetch('/api/quiz/start', {
         method: 'POST',
@@ -111,18 +108,29 @@ export default function GateTestPage() {
         body: JSON.stringify({
           examType: 'GATE',
           mode: mode,
-          year: selectedYear ? parseInt(selectedYear) : null,
+          year: selectedYear ? parseInt(selectedYear) : undefined,
           branchCode: selectedBranch,
           totalQuestions: 65,
           duration: 180 * 60,
         }),
       });
+
       if (res.ok) {
         const data = await res.json();
-        setSessionId(data.id);
+        if (data.questions && data.questions.length > 0) {
+          setQuestions(data.questions);
+          setSessionId(data.session?.id || null);
+        } else {
+          const fallback = generateMockQuestions(65);
+          setQuestions(fallback);
+        }
+      } else {
+        const fallback = generateMockQuestions(65);
+        setQuestions(fallback);
       }
     } catch (e) {
-      console.log('Running in demo mode');
+      const fallback = generateMockQuestions(65);
+      setQuestions(fallback);
     }
 
     setTestMode('test');
