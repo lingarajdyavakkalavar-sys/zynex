@@ -3,27 +3,9 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SignIn, ClerkProvider } from '@clerk/nextjs';
+import { SignIn } from '@clerk/nextjs';
 import { motion } from 'framer-motion';
 import { GraduationCap } from 'lucide-react';
-
-export default function LoginPage() {
-  return (
-    <ClerkProvider>
-      <LoginForm />
-    </ClerkProvider>
-  );
-}
-
-function LoginForm() {
-  const router = useRouter();
-
-  return (
-    <Suspense fallback={<LoadingState />}>
-      <LoginContent router={router} />
-    </Suspense>
-  );
-}
 
 function LoadingState() {
   return (
@@ -33,7 +15,8 @@ function LoadingState() {
   );
 }
 
-function LoginContent({ router }: { router: ReturnType<typeof useRouter> }) {
+function LoginContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard';
   const [isSignUp] = useState(false);
@@ -107,5 +90,13 @@ function LoginContent({ router }: { router: ReturnType<typeof useRouter> }) {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <LoginContent />
+    </Suspense>
   );
 }

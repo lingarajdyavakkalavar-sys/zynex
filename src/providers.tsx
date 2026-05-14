@@ -19,7 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ClerkProviderBase>
+    <ClerkProviderBase publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''}>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           {children}
