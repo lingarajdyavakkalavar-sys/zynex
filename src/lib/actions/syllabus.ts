@@ -167,7 +167,6 @@ export async function createOfficialSyllabus(data: {
       title: `Official ${examType} ${branch || ''} Syllabus`,
       description: `Complete ${examType} syllabus for competitive exam preparation`,
       subjectId,
-      examType,
       sourceType: 'PASTED_TEXT',
       isPublished: true,
     },
@@ -242,26 +241,12 @@ export async function getAllSyllabiWithFilters(options: {
     where.isPublished = options.isPublished;
   }
 
-  if (options.examType) {
-    where.subject = {
-      examType: options.examType,
-    };
-  }
-
-  if (options.semesterId) {
-    where.subject = {
-      ...where.subject,
-      semesterId: options.semesterId,
-    };
-  }
-
-  if (options.branchId) {
-    where.subject = {
-      ...where.subject,
-      semester: {
-        branchId: options.branchId,
-      },
-    };
+  if (options.examType || options.semesterId || options.branchId) {
+    const subjectFilter: Record<string, unknown> = {};
+    if (options.examType) subjectFilter.examType = options.examType;
+    if (options.semesterId) subjectFilter.semesterId = options.semesterId;
+    if (options.branchId) subjectFilter.semester = { branchId: options.branchId };
+    where.subject = subjectFilter;
   }
 
   const syllabi = await prisma.syllabus.findMany({

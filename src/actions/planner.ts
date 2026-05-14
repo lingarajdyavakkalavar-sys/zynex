@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
 export async function getStudyPlanner() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   return prisma.studyPlanner.findFirst({
@@ -25,7 +25,7 @@ export async function createStudyPlanner(data: {
   dailyHours: number;
   examType: string;
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   await prisma.studyPlanner.updateMany({
@@ -34,7 +34,7 @@ export async function createStudyPlanner(data: {
   });
 
   const planner = await prisma.studyPlanner.create({
-    data: { ...data, userId },
+    data: { ...data, userId, examType: data.examType as any },
     include: { dailyTargets: true },
   });
 
@@ -65,7 +65,7 @@ export async function updateDailyTarget(plannerId: string, date: Date, completed
 }
 
 export async function calculateReadinessScore() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const user = await prisma.user.findUnique({
@@ -105,7 +105,7 @@ export async function calculateReadinessScore() {
 }
 
 export async function getBacklogTopics() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return [];
 
   return prisma.backlogTopic.findMany({
@@ -116,7 +116,7 @@ export async function getBacklogTopics() {
 }
 
 export async function addToBacklog(topicId: string, reason?: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.backlogTopic.upsert({
@@ -128,7 +128,7 @@ export async function addToBacklog(topicId: string, reason?: string) {
 }
 
 export async function removeFromBacklog(topicId: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   await prisma.backlogTopic.delete({

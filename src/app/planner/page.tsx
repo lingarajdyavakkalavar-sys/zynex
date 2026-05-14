@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from '@/components/sidebar';
 import { EXAMS } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 
 const timelineData = [
   { month: 'Jul', target: 100, completed: 80 },

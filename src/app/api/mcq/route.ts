@@ -4,7 +4,7 @@ import { getMCQsForQuiz, saveQuizAttempt, createQuizSession, completeQuizSession
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -12,8 +12,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const topicIds = searchParams.get('topicIds')?.split(',').filter(Boolean);
     const limit = parseInt(searchParams.get('limit') || '10');
-    const difficulty = searchParams.get('difficulty');
-    const examType = searchParams.get('examType');
+    const difficultyParam = searchParams.get('difficulty');
+    const difficulty: string | undefined = difficultyParam ?? undefined;
+    const examTypeParam = searchParams.get('examType');
+    const examType: string | undefined = examTypeParam ?? undefined;
 
     const mcqs = await getMCQsForQuiz({ topicIds, limit, difficulty, examType });
     
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

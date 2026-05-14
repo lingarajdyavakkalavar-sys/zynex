@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
 export async function getSyllabusBySubject(subjectId: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.syllabus.findFirst({
@@ -62,7 +62,7 @@ export async function createSyllabus(data: {
   sourceUrl?: string;
   fileName?: string;
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -82,7 +82,7 @@ export async function updateSyllabus(id: string, data: {
   description?: string;
   isPublished?: boolean;
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -99,7 +99,7 @@ export async function updateSyllabus(id: string, data: {
 }
 
 export async function deleteSyllabus(id: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   const user = await prisma.user.findUnique({ where: { id: userId } });

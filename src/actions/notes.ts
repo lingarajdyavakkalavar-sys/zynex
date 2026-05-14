@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
 export async function getRevisionNotes(topicId?: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return [];
 
   return prisma.revisionNote.findMany({
@@ -21,7 +21,7 @@ export async function createRevisionNote(data: {
   content: string;
   tags?: string[];
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   const note = await prisma.revisionNote.create({
@@ -38,7 +38,7 @@ export async function createRevisionNote(data: {
 }
 
 export async function updateRevisionNote(id: string, data: { title?: string; content?: string; tags?: string[] }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   const note = await prisma.revisionNote.update({
@@ -52,7 +52,7 @@ export async function updateRevisionNote(id: string, data: { title?: string; con
 }
 
 export async function deleteRevisionNote(id: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   await prisma.revisionNote.delete({ where: { id, userId } });
@@ -60,7 +60,7 @@ export async function deleteRevisionNote(id: string) {
 }
 
 export async function getFlashcards(topicId?: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return [];
 
   return prisma.flashcard.findMany({
@@ -71,7 +71,7 @@ export async function getFlashcards(topicId?: string) {
 }
 
 export async function createFlashcard(data: { topicId: string; front: string; back: string; difficulty?: string }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.flashcard.create({
@@ -99,7 +99,7 @@ export async function updateFlashcardReview(id: string, wasCorrect: boolean) {
 }
 
 export async function getFormulaSheets(topicId?: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return [];
 
   return prisma.formulaSheet.findMany({
@@ -110,7 +110,7 @@ export async function getFormulaSheets(topicId?: string) {
 }
 
 export async function createFormulaSheet(data: { topicId: string; title: string; formulas: any }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.formulaSheet.create({

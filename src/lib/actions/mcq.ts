@@ -176,16 +176,27 @@ export async function getWeakTopics(threshold: number = 60) {
     by: ['mcqId'],
     where: { userId },
     _count: true,
-    _avg: { isCorrect: true },
+  });
+
+  // Get MCQ details for grouped results
+  const mcqIds = attempts.map(a => a.mcqId);
+  const weakMcqData = await prisma.mCQ.findMany({
+    where: { id: { in: mcqIds } },
+    include: { attempts: { where: { userId } } },
   });
 
   // Get weak topic IDs (accuracy below threshold)
-  const weakMcqIds = attempts
-    .filter(a => (a._avg.isCorrect || 0) * 100 < threshold)
-    .map(a => a.mcqId);
+  const weakMcqIds = weakMcqData
+    .filter(mcq => {
+      const total = mcq.attempts.length;
+      const correct = mcq.attempts.filter(a => a.isCorrect).length;
+      const accuracy = total > 0 ? (correct / total) * 100 : 100;
+      return accuracy < threshold;
+    })
+    .map(m => m.id);
 
   // Get the topics for these MCQs
-  const mcqs = await prisma.mCQ.findMany({
+  const weakMcqs = await prisma.mCQ.findMany({
     where: { id: { in: weakMcqIds } },
     include: {
       topic: {
@@ -206,7 +217,7 @@ export async function getWeakTopics(threshold: number = 60) {
 
   // Group by topic
   const topicMap = new Map();
-  mcqs.forEach(mcq => {
+  weakMcqs.forEach(mcq => {
     if (!topicMap.has(mcq.topicId)) {
       topicMap.set(mcq.topicId, {
         topic: mcq.topic,

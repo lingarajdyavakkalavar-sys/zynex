@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
 export async function startStudyTimer(topicId?: string, sessionType = 'study') {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   await prisma.studyTimer.updateMany({
@@ -95,7 +95,7 @@ export async function stopStudyTimer(timerId: string) {
 }
 
 export async function getActiveTimer() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   return prisma.studyTimer.findFirst({
@@ -106,7 +106,7 @@ export async function getActiveTimer() {
 }
 
 export async function getStudyTimerHistory(limit = 50) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return [];
 
   return prisma.studyTimer.findMany({
@@ -118,7 +118,7 @@ export async function getStudyTimerHistory(limit = 50) {
 }
 
 export async function getStudyStats() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const user = await prisma.user.findUnique({

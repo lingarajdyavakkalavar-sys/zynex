@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SignIn, SignUp, ClerkProvider } from '@clerk/nextjs';
+import { SignIn, ClerkProvider } from '@clerk/nextjs';
 import { motion } from 'framer-motion';
 import { GraduationCap } from 'lucide-react';
 
@@ -17,9 +17,26 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
+
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <LoginContent router={router} />
+    </Suspense>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="min-h-screen bg-[#050508] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[#0066cc] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function LoginContent({ router }: { router: ReturnType<typeof useRouter> }) {
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard';
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#050508] flex">

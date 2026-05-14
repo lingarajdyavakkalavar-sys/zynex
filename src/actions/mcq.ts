@@ -50,7 +50,7 @@ export async function createMCQ(data: {
   options: { text: string; index: number }[];
   explanation?: string;
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   const { options, ...mcqData } = data;
@@ -68,7 +68,7 @@ export async function createMCQ(data: {
 }
 
 export async function updateTopicProgress(topicId: string, status: string, masteryScore?: number) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.topicProgress.upsert({
@@ -95,7 +95,7 @@ export async function saveQuizAttempt(data: {
   timeSpent: number;
   quizSessionId?: string;
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.mCQAttempt.create({
@@ -112,7 +112,7 @@ export async function createQuizSession(data: {
   totalQuestions: number;
   duration: number;
 }) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
   return prisma.quizSession.create({
@@ -139,7 +139,7 @@ export async function completeQuizSession(id: string, correctCount: number) {
 }
 
 export async function getQuizHistory(limit = 20) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return [];
 
   return prisma.quizSession.findMany({
@@ -153,7 +153,7 @@ export async function getQuizHistory(limit = 20) {
 }
 
 export async function getUserMCQAnalytics() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const [total, correct, byTopic, byDifficulty] = await Promise.all([

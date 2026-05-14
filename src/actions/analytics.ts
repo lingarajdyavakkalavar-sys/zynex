@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
 export async function getDashboardAnalytics() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const user = await prisma.user.findUnique({
@@ -16,6 +16,7 @@ export async function getDashboardAnalytics() {
       mcqAttempts: {
         orderBy: { attemptedAt: 'desc' },
         take: 100,
+        include: { mcq: true },
       },
       studyPlanners: {
         include: { dailyTargets: { take: 7, orderBy: { date: 'desc' } } },
@@ -99,7 +100,7 @@ export async function getDashboardAnalytics() {
 }
 
 export async function getTopicAnalytics(topicId: string) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return null;
 
   const [progress, attempts, studyTime] = await Promise.all([
