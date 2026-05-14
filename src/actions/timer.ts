@@ -69,14 +69,14 @@ export async function stopStudyTimer(timerId: string) {
 
   if (timer.topicId) {
     await prisma.topicProgress.upsert({
-      where: { userId_topicId: { userId: timer.userId, topicId: timer.topicId } },
+      where: { userId_gateTopicId: { userId: timer.userId, gateTopicId: timer.topicId } },
       update: {
         timeSpent: { increment: activeSeconds },
         lastStudiedAt: endTime,
       },
       create: {
         userId: timer.userId,
-        topicId: timer.topicId,
+        gateTopicId: timer.topicId,
         timeSpent: activeSeconds,
         lastStudiedAt: endTime,
         status: 'IN_PROGRESS',
@@ -100,7 +100,6 @@ export async function getActiveTimer() {
 
   return prisma.studyTimer.findFirst({
     where: { userId, isActive: true },
-    include: { topic: true },
     orderBy: { startTime: 'desc' },
   });
 }
@@ -111,7 +110,6 @@ export async function getStudyTimerHistory(limit = 50) {
 
   return prisma.studyTimer.findMany({
     where: { userId },
-    include: { topic: true },
     orderBy: { startTime: 'desc' },
     take: limit,
   });

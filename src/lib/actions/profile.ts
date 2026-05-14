@@ -58,12 +58,9 @@ export async function updateStudyStreak() {
     const diffDays = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
     
     if (diffDays === 0) {
-      // Same day, no change
     } else if (diffDays === 1) {
-      // Consecutive day, increment streak
       newStreak += 1;
     } else {
-      // Streak broken
       newStreak = 1;
     }
   } else {
@@ -84,19 +81,16 @@ export async function updateStudyStreak() {
 export async function getStudyAnalytics(userId: string) {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // Get weekly study sessions
-  const weeklySessions = await prisma.studySession.findMany({
+  const weeklySessions = await prisma.studyTimer.findMany({
     where: {
       userId,
       startTime: { gte: weekAgo },
     },
   });
 
-  const weeklyHours = weeklySessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60;
+  const weeklyHours = weeklySessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 3600;
 
-  // Get topic progress stats
   const progressStats = await prisma.topicProgress.findMany({
     where: { userId },
   });
@@ -104,7 +98,6 @@ export async function getStudyAnalytics(userId: string) {
   const completedTopics = progressStats.filter(p => p.status === 'COMPLETED').length;
   const totalTimeSpent = progressStats.reduce((acc, p) => acc + p.timeSpent, 0);
 
-  // Get MCQ stats
   const mcqStats = await prisma.mCQAttempt.findMany({
     where: { userId },
   });
@@ -113,22 +106,15 @@ export async function getStudyAnalytics(userId: string) {
   const correctAttempts = mcqStats.filter(a => a.isCorrect).length;
   const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
-  // Get backlog count
-  const backlogCount = await prisma.backlogTopic.count({
-    where: { userId },
-  });
-
-  // Get user info
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
 
   return {
     weeklyHours: Math.round(weeklyHours * 10) / 10,
-    totalStudyHours: Math.round(totalTimeSpent / 60),
+    totalStudyHours: Math.round(totalTimeSpent / 3600),
     completedTopics,
     totalTopicsTracked: progressStats.length,
-    backlogCount,
     streakDays: user?.streakDays || 0,
     mcqStats: {
       totalAttempts,

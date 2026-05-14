@@ -9,51 +9,41 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const userData = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { examType: true, studyHours: true, streakDays: true },
+    });
+
+    const examType = userData?.examType || 'GATE';
+
     const [
       totalTopics,
       completedTopics,
       totalAttempts,
       correctAttempts,
-      userData,
       totalMcqs,
       weakTopics,
       recentSessions,
       dailyStats,
     ] = await Promise.all([
-      // Total topics for user's exam type
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { examType: true },
-      }).then(async (user) => {
-        const count = await prisma.topic.count({
-          where: { examType: user?.examType || 'GATE' },
-        });
-        return count;
-      }),
+      examType === 'GATE'
+        ? prisma.gATETopic.count()
+        : prisma.cATTopic.count(),
 
-      // Completed topics
       prisma.topicProgress.count({
-        where: { userId, status: 'COMPLETED' },
+        where: { userId, examType },
       }),
 
-      // Total MCQ attempts
       prisma.mCQAttempt.count({
         where: { userId },
       }),
 
-      // Correct attempts
       prisma.mCQAttempt.count({
         where: { userId, isCorrect: true },
       }),
 
-      // Study hours
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { studyHours: true, streakDays: true },
-      }),
       prisma.mCQ.count(),
 
-      // Weak topics (most wrong answers)
       prisma.mCQAttempt.groupBy({
         by: ['mcqId'],
         where: { userId, isCorrect: false },
@@ -62,7 +52,6 @@ export async function GET() {
         take: 10,
       }),
 
-      // Recent quiz sessions
       prisma.quizSession.findMany({
         where: { userId },
         orderBy: { startedAt: 'desc' },
@@ -70,7 +59,6 @@ export async function GET() {
         include: { _count: { select: { attempts: true } } },
       }),
 
-      // Daily study stats (last 7 days)
       prisma.studyTimer.findMany({
         where: {
           userId,
@@ -80,23 +68,30 @@ export async function GET() {
       }),
     ]);
 
-    // Process weak topics
-    const weakTopicIds = weakTopics.map(w => w.mcqId);
-    const topicsWithMcqs = await prisma.mCQ.findMany({
-      where: { id: { in: weakTopicIds } },
-      include: { topic: true },
-    });
+    let weakTopicsData: { topicId: string | null; topicName: string | null; wrongCount: number }[] = [];
 
-    const weakTopicsWithCount = weakTopics.map(w => {
-      const mcq = topicsWithMcqs.find(t => t.id === w.mcqId);
-      return {
-        topicId: mcq?.topicId,
-        topicName: mcq?.topic?.title,
-        wrongCount: w._count.id,
-      };
-    });
+    if (weakTopics.length > 0) {
+      const weakTopicIds = weakTopics.map(w => w.mcqId);
+      const mcqs = await prisma.mCQ.findMany({
+        where: { id: { in: weakTopicIds } },
+        select: {
+          id: true,
+          gateTopicId: true,
+          catTopicId: true,
+        },
+      });
 
-    // Process daily stats
+      weakTopicsData = weakTopics.map(w => {
+        const mcq = mcqs.find(m => m.id === w.mcqId);
+        const topicId = examType === 'GATE' ? (mcq?.gateTopicId ?? null) : (mcq?.catTopicId ?? null);
+        return {
+          topicId,
+          topicName: null as string | null,
+          wrongCount: w._count.id,
+        };
+      });
+    }
+
     const dailyMap = new Map<string, number>();
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
@@ -114,11 +109,9 @@ export async function GET() {
       hours: Math.round(hours * 10) / 10,
     }));
 
-    // Calculate readiness score
     const readinessScore = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
     const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
-    // Overall stats
     const stats = {
       readinessScore,
       completedTopics,
@@ -131,10 +124,11 @@ export async function GET() {
       availableMcqs: totalMcqs - totalAttempts,
       studyHours: userData?.studyHours || 0,
       streakDays: userData?.streakDays || 0,
-      weakTopics: weakTopicsWithCount.filter(t => t.topicName),
+      weakTopics: weakTopicsData.filter(t => t.topicName),
       recentSessions: recentSessions.map(s => ({
         id: s.id,
         mode: s.mode,
+        examType: s.examType,
         totalQuestions: s.totalQuestions,
         correctCount: s.correctCount,
         startedAt: s.startedAt,

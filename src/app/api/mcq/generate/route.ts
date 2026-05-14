@@ -11,7 +11,8 @@ const getOpenAI = () => {
 };
 
 interface MCQPrompt {
-  topicId: string;
+  gateTopicId?: string;
+  catTopicId?: string;
   sourceContent: string;
   count: number;
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
@@ -49,34 +50,27 @@ export async function POST(req: NextRequest) {
     }
 
     const body: MCQPrompt = await req.json();
-    const { topicId, sourceContent, count = 5, difficulty = 'MEDIUM', examType = 'GATE', branchCode, section } = body;
+    const { gateTopicId, catTopicId, sourceContent, count = 5, difficulty = 'MEDIUM', examType = 'GATE', branchCode, section } = body;
 
-    if (!topicId || !sourceContent) {
-      return NextResponse.json({ error: 'topicId and sourceContent are required' }, { status: 400 });
+    let topicTitle = 'Unknown Topic';
+    if (examType === 'GATE' && gateTopicId) {
+      const topic = await prisma.gATETopic.findUnique({ where: { id: gateTopicId } });
+      topicTitle = topic?.title || topicTitle;
+    } else if (examType === 'CAT' && catTopicId) {
+      const topic = await prisma.cATTopic.findUnique({ where: { id: catTopicId } });
+      topicTitle = topic?.title || topicTitle;
     }
 
-    // Get topic for context
-    const topic = await prisma.topic.findUnique({
-      where: { id: topicId },
-      include: { unit: { include: { syllabus: true } } },
-    });
-
-    if (!topic) {
-      return NextResponse.json({ error: 'Topic not found' }, { status: 404 });
-    }
-
-    // Chunk content if too long
     const chunks = chunkText(sourceContent);
     const promptChunk = chunks[0] || sourceContent.substring(0, 8000);
 
     const difficultyLabel = difficulty === 'EASY' ? 'basic' : difficulty === 'HARD' ? 'advanced' : 'intermediate';
-    const examContext = examType === 'CAT' 
+    const examContext = examType === 'CAT'
       ? 'CAT exam pattern (VARC/DILR/QA style)'
-      : 'GATE CS exam pattern';
+      : 'GATE exam pattern';
 
-    const prompt = `You are an expert in ${topic.title} for ${examContext}.
+    const prompt = `You are an expert in ${topicTitle} for ${examContext}.
 Generate exactly ${count} multiple choice questions of ${difficultyLabel} difficulty level.
-${examType === 'GATE' ? 'Include both 1-mark and 2-mark questions where appropriate.' : ''}
 Follow competitive exam MCQ format.
 
 Return ONLY valid JSON array, no markdown, no explanation outside JSON:
@@ -90,8 +84,7 @@ Return ONLY valid JSON array, no markdown, no explanation outside JSON:
       {"index": 3, "text": "Fourth option"}
     ],
     "correctIndex": 0,
-    "explanation": "Brief explanation why this is correct",
-    "difficulty": "${difficulty}"
+    "explanation": "Brief explanation why this is correct"
   }
 ]
 
@@ -121,7 +114,6 @@ ${promptChunk}`;
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 });
     }
 
-    // Parse JSON response
     let mcqs: any[];
     try {
       const cleanedContent = aiContent.replace(/```json\n?/g, '').replace(/```\n?$/g, '').trim();
@@ -135,44 +127,24 @@ ${promptChunk}`;
       return NextResponse.json({ error: 'Invalid AI response format' }, { status: 500 });
     }
 
-    // Store MCQs in database
-    const createdMcqs = [];
-    for (const mcq of mcqs.slice(0, count)) {
-      const created = await prisma.mCQ.create({
+    const createdMcqs = await Promise.all(mcqs.slice(0, count).map(async (mcq) => {
+      return prisma.mCQ.create({
         data: {
-          topicId,
           question: mcq.question,
-          difficulty: mcq.difficulty || difficulty,
-          correctIndex: mcq.correctIndex ?? 0,
+          options: mcq.options.map((o: any) => ({ index: o.index, text: o.text })),
+          correctAnswer: mcq.correctIndex ?? 0,
           explanation: mcq.explanation,
-          tags: [topic.title],
+          difficulty: difficulty as any,
+          tags: [topicTitle],
           examType: examType as any,
-          branchCode,
-          section,
-          marks: examType === 'GATE' ? 1 : undefined,
-          source: 'AI_GENERATED',
+          gateTopicId: examType === 'GATE' ? gateTopicId : null,
+          catTopicId: examType === 'CAT' ? catTopicId : null,
+          gateBranchCode: examType === 'GATE' ? branchCode : null,
+          catSectionCode: examType === 'CAT' ? section : null,
+          sourceType: 'AI_GENERATED',
         },
       });
-
-      // Create options
-      for (const option of mcq.options) {
-        await prisma.mCQOption.create({
-          data: {
-            mcqId: created.id,
-            text: option.text,
-            index: option.index,
-          },
-        });
-      }
-
-      createdMcqs.push(created);
-    }
-
-    // Update material mcqCount
-    await prisma.uploadedMaterial.updateMany({
-      where: { userId },
-      data: { mcqCount: { increment: createdMcqs.length } },
-    });
+    }));
 
     return NextResponse.json({
       success: true,

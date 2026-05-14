@@ -4,33 +4,28 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
-export async function getMCQsByTopic(topicId: string) {
+export async function getMCQsByTopic(gateTopicId: string) {
   return prisma.mCQ.findMany({
-    where: { topicId },
-    include: { options: { orderBy: { index: 'asc' } } },
+    where: { gateTopicId },
     orderBy: { createdAt: 'desc' },
   });
 }
 
 export async function getMCQsForQuiz(params: {
-  topicIds?: string[];
+  gateTopicId?: string;
   limit?: number;
   difficulty?: string;
   examType?: string;
-  subjectId?: string;
+  year?: number;
 }) {
-  const { topicIds, limit = 10, difficulty, examType, subjectId } = params;
+  const { gateTopicId, limit = 10, difficulty, examType, year } = params;
 
   return prisma.mCQ.findMany({
     where: {
-      ...(subjectId && { topic: { unit: { syllabus: { subjectId } } } }),
-      ...(topicIds && topicIds.length > 0 && { topicId: { in: topicIds } }),
+      ...(gateTopicId && { gateTopicId }),
       ...(difficulty && { difficulty: difficulty as any }),
       ...(examType && { examType: examType as any }),
-    },
-    include: {
-      options: { orderBy: { index: 'asc' } },
-      topic: true,
+      ...(year && { year }),
     },
     take: limit,
     orderBy: { createdAt: 'desc' },
@@ -38,64 +33,49 @@ export async function getMCQsForQuiz(params: {
 }
 
 export async function createMCQ(data: {
-  topicId: string;
+  gateTopicId?: string;
   question: string;
+  options: any;
+  correctAnswer: number;
   difficulty?: string;
   examType?: string;
-  section?: string;
   marks?: number;
   negativeMarks?: number;
   year?: number;
   isPreviousYear?: boolean;
   questionType?: string;
-  answer?: string;
-  options: { text: string; index: number }[];
   explanation?: string;
 }) {
   const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
-  const { options, ...mcqData } = data;
-
   return prisma.mCQ.create({
     data: {
-      ...mcqData,
-      difficulty: mcqData.difficulty as any || 'MEDIUM',
-      examType: mcqData.examType as any || 'UNIVERSITY',
-      correctIndex: options.findIndex(o => o.index === 0) + 1 || 1,
-      options: { create: options },
-    },
-    include: { options: true },
-  });
-}
-
-export async function updateTopicProgress(topicId: string, status: string, masteryScore?: number) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
-  return prisma.topicProgress.upsert({
-    where: { userId_topicId: { userId, topicId } },
-    update: {
-      status: status as any,
-      ...(masteryScore !== undefined && { masteryScore }),
-      lastStudiedAt: new Date(),
-    },
-    create: {
-      userId,
-      topicId,
-      status: status as any,
-      masteryScore: masteryScore || 0,
-      lastStudiedAt: new Date(),
+      question: data.question,
+      options: data.options,
+      correctAnswer: data.correctAnswer,
+      difficulty: data.difficulty as any || 'MEDIUM',
+      examType: data.examType as any || 'GATE',
+      marks: data.marks || 1,
+      negativeMarks: data.negativeMarks || 0.33,
+      isPreviousYear: data.isPreviousYear || false,
+      questionType: (data.questionType as any) || 'MCQ',
+      gateTopicId: data.gateTopicId,
+      year: data.year,
+      explanation: data.explanation,
     },
   });
 }
 
 export async function saveQuizAttempt(data: {
   mcqId: string;
-  selectedIndex: number | null;
+  selectedAnswer: number | null;
   isCorrect: boolean;
+  marksObtained: number;
+  negativeMarks: number;
   timeSpent: number;
   quizSessionId?: string;
+  isMarkedForReview?: boolean;
 }) {
   const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
@@ -109,10 +89,13 @@ export async function saveQuizAttempt(data: {
 }
 
 export async function createQuizSession(data: {
+  examType: string;
   mode: string;
-  topicIds: string[];
   totalQuestions: number;
   duration: number;
+  year?: number;
+  branchCode?: string;
+  sectionCode?: string;
 }) {
   const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
@@ -120,20 +103,27 @@ export async function createQuizSession(data: {
   return prisma.quizSession.create({
     data: {
       userId,
+      examType: data.examType as any,
       mode: data.mode as any,
-      topicIds: data.topicIds,
       totalQuestions: data.totalQuestions,
       duration: data.duration,
+      remainingTime: data.duration,
+      year: data.year,
+      branchCode: data.branchCode,
+      sectionCode: data.sectionCode,
     },
   });
 }
 
-export async function completeQuizSession(id: string, correctCount: number) {
+export async function completeQuizSession(id: string, correctCount: number, obtainedMarks: number) {
   const session = await prisma.quizSession.update({
     where: { id },
     data: {
       correctCount,
+      obtainedMarks,
+      status: 'COMPLETED',
       completedAt: new Date(),
+      remainingTime: 0,
     },
   });
   revalidatePath('/practice');
@@ -148,9 +138,6 @@ export async function getQuizHistory(limit = 20) {
     where: { userId },
     orderBy: { startedAt: 'desc' },
     take: limit,
-    include: {
-      _count: { select: { attempts: true } },
-    },
   });
 }
 
@@ -158,14 +145,9 @@ export async function getUserMCQAnalytics() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const [total, correct, byTopic, byDifficulty] = await Promise.all([
+  const [total, correct, byDifficulty] = await Promise.all([
     prisma.mCQAttempt.count({ where: { userId } }),
     prisma.mCQAttempt.count({ where: { userId, isCorrect: true } }),
-    prisma.mCQAttempt.groupBy({
-      by: ['mcqId'],
-      where: { userId },
-      _count: true,
-    }),
     prisma.mCQAttempt.findMany({
       where: { userId },
       include: { mcq: { select: { difficulty: true } } },

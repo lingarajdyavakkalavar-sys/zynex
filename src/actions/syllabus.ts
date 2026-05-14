@@ -4,112 +4,68 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
 import { auth } from '@clerk/nextjs/server';
 
-export async function getSyllabusBySubject(subjectId: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+export async function getGATESubjects(branchCode: string = 'CS') {
+  const branch = await prisma.gATEBranch.findUnique({ where: { code: branchCode } });
+  if (!branch) return [];
 
-  return prisma.syllabus.findFirst({
-    where: { subjectId, isPublished: true },
-    include: {
-      subject: true,
-      units: {
-        orderBy: { order: 'asc' },
-        include: {
-          topics: {
-            orderBy: { order: 'asc' },
-            include: {
-              _count: { select: { mcqs: true } },
-            },
-          },
-        },
-      },
-    },
+  return prisma.gATESubject.findMany({
+    where: { branchId: branch.id },
+    orderBy: { order: 'asc' },
   });
 }
 
-export async function getAllSyllabi(filters?: {
-  examType?: string;
-  subjectId?: string;
-  isPublished?: boolean;
-}) {
-  return prisma.syllabus.findMany({
+export async function getGATETopics(subjectId: string) {
+  return prisma.gATETopic.findMany({
+    where: { subjectId },
+    orderBy: { order: 'asc' },
+  });
+}
+
+export async function getGATEBranches() {
+  return prisma.gATEBranch.findMany({
+    orderBy: { name: 'asc' },
+  });
+}
+
+export async function getGATEPapers(branchCode: string, year?: number) {
+  const branch = await prisma.gATEBranch.findUnique({ where: { code: branchCode } });
+  if (!branch) return [];
+
+  return prisma.gATEPaper.findMany({
     where: {
-      ...(filters?.isPublished !== undefined && { isPublished: filters.isPublished }),
-      ...(filters?.examType && { examType: filters.examType as any }),
-      ...(filters?.subjectId && { subjectId: filters.subjectId }),
+      branchId: branch.id,
+      ...(year && { year }),
     },
-    include: {
-      subject: true,
-      _count: { select: { units: true } },
-    },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { year: 'desc' },
   });
 }
 
-export async function createSyllabus(data: {
-  title: string;
-  description?: string;
-  subjectId: string;
-  sourceType?: string;
-  sourceUrl?: string;
-  fileName?: string;
-}) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (user?.role !== 'ADMIN') throw new Error('Forbidden');
-
-  return prisma.syllabus.create({
-    data: {
-      ...data,
-      sourceType: data.sourceType as any || 'PASTED_TEXT',
-    },
-    include: { subject: true },
+export async function getCATSections() {
+  return prisma.cATSection.findMany({
+    orderBy: { order: 'asc' },
   });
 }
 
-export async function updateSyllabus(id: string, data: {
-  title?: string;
-  description?: string;
-  isPublished?: boolean;
-}) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+export async function getCATSubsections(sectionCode: string) {
+  const section = await prisma.cATSection.findUnique({ where: { code: sectionCode } });
+  if (!section) return [];
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (user?.role !== 'ADMIN') throw new Error('Forbidden');
-
-  const syllabus = await prisma.syllabus.update({
-    where: { id },
-    data,
-    include: { subject: true },
-  });
-
-  revalidatePath('/admin');
-  return syllabus;
-}
-
-export async function deleteSyllabus(id: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (user?.role !== 'ADMIN') throw new Error('Forbidden');
-
-  await prisma.syllabus.delete({ where: { id } });
-  revalidatePath('/admin');
-}
-
-export async function createUnit(syllabusId: string, data: { title: string; order: number }) {
-  return prisma.unit.create({
-    data: { ...data, syllabusId },
-    include: { topics: true },
+  return prisma.cATSubsection.findMany({
+    where: { sectionId: section.id },
+    orderBy: { order: 'asc' },
   });
 }
 
-export async function createTopic(unitId: string, data: { title: string; order: number; content?: string }) {
-  return prisma.topic.create({
-    data: { ...data, unitId },
+export async function getCATTopics(subsectionId: string) {
+  return prisma.cATTopic.findMany({
+    where: { subsectionId },
+    orderBy: { order: 'asc' },
+  });
+}
+
+export async function getCATPapers(year?: number) {
+  return prisma.cATPaper.findMany({
+    where: year ? { year } : undefined,
+    orderBy: { year: 'desc' },
   });
 }

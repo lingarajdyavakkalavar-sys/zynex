@@ -10,13 +10,12 @@ export async function getRevisionNotes(topicId?: string) {
 
   return prisma.revisionNote.findMany({
     where: { userId, ...(topicId && { topicId }) },
-    include: { topic: true },
     orderBy: { updatedAt: 'desc' },
   });
 }
 
 export async function createRevisionNote(data: {
-  topicId: string;
+  topicId?: string;
   title: string;
   content: string;
   tags?: string[];
@@ -24,31 +23,23 @@ export async function createRevisionNote(data: {
   const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
-  const note = await prisma.revisionNote.create({
+  return prisma.revisionNote.create({
     data: {
       ...data,
       userId,
       tags: data.tags || [],
     },
-    include: { topic: true },
   });
-
-  revalidatePath('/notebook');
-  return note;
 }
 
 export async function updateRevisionNote(id: string, data: { title?: string; content?: string; tags?: string[] }) {
   const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
-  const note = await prisma.revisionNote.update({
+  return prisma.revisionNote.update({
     where: { id, userId },
     data,
-    include: { topic: true },
   });
-
-  revalidatePath('/notebook');
-  return note;
 }
 
 export async function deleteRevisionNote(id: string) {
@@ -65,12 +56,11 @@ export async function getFlashcards(topicId?: string) {
 
   return prisma.flashcard.findMany({
     where: { userId, ...(topicId && { topicId }) },
-    include: { topic: true },
     orderBy: { nextReview: 'asc' },
   });
 }
 
-export async function createFlashcard(data: { topicId: string; front: string; back: string; difficulty?: string }) {
+export async function createFlashcard(data: { topicId?: string; front: string; back: string; difficulty?: string }) {
   const { userId } = await auth();
   if (!userId) throw new Error('Unauthorized');
 
@@ -80,7 +70,6 @@ export async function createFlashcard(data: { topicId: string; front: string; ba
       userId,
       difficulty: data.difficulty as any || 'MEDIUM',
     },
-    include: { topic: true },
   });
 }
 
@@ -95,29 +84,5 @@ export async function updateFlashcardReview(id: string, wasCorrect: boolean) {
   return prisma.flashcard.update({
     where: { id },
     data: { nextReview },
-  });
-}
-
-export async function getFormulaSheets(topicId?: string) {
-  const { userId } = await auth();
-  if (!userId) return [];
-
-  return prisma.formulaSheet.findMany({
-    where: { userId, ...(topicId && { topicId }) },
-    include: { topic: true },
-    orderBy: { updatedAt: 'desc' },
-  });
-}
-
-export async function createFormulaSheet(data: { topicId: string; title: string; formulas: any }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
-  return prisma.formulaSheet.create({
-    data: {
-      ...data,
-      userId,
-    },
-    include: { topic: true },
   });
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getMCQsForQuiz, saveQuizAttempt, createQuizSession, completeQuizSession } from '@/actions/mcq';
+import { prisma } from '@/lib/db/prisma';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,74 +10,47 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const topicIds = searchParams.get('topicIds')?.split(',').filter(Boolean);
-    const subjectId = searchParams.get('subjectId');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const difficultyParam = searchParams.get('difficulty');
-    const difficulty: string | undefined = difficultyParam ?? undefined;
-    const examTypeParam = searchParams.get('examType');
-    const examType: string | undefined = examTypeParam ?? undefined;
+    const examType = searchParams.get('examType') as 'GATE' | 'CAT';
+    const year = searchParams.get('year');
+    const branchCode = searchParams.get('branchCode');
+    const sectionCode = searchParams.get('sectionCode');
+    const difficulty = searchParams.get('difficulty');
+    const count = parseInt(searchParams.get('count') || '65');
+    const topicId = searchParams.get('topicId');
 
-    let mcqs;
-    if (subjectId) {
-      mcqs = await getMCQsForQuiz({ 
-        topicIds: undefined, 
-        limit, 
-        difficulty, 
-        examType,
-        subjectId 
+    const where: any = { examType };
+
+    if (examType === 'GATE') {
+      if (year) where.year = parseInt(year);
+      if (branchCode) where.gateBranchCode = branchCode;
+    } else if (examType === 'CAT') {
+      if (sectionCode) where.catSectionCode = sectionCode;
+    }
+
+    if (difficulty) where.difficulty = difficulty;
+    if (topicId) where.gateTopicId = topicId;
+
+    const questions = await prisma.mCQ.findMany({
+      where,
+      take: count,
+      orderBy: year ? [{ year: 'desc' }, { paperCode: 'asc' }] : [{ createdAt: 'desc' }],
+    });
+
+    if (questions.length === 0) {
+      return NextResponse.json({
+        message: 'No questions found in database',
+        demoMode: true,
+        suggestion: 'Upload question papers or use practice mode to generate questions'
       });
-    } else {
-      mcqs = await getMCQsForQuiz({ topicIds, limit, difficulty, examType });
     }
-    
-    const sanitized = mcqs.map(mcq => ({
-      id: mcq.id,
-      question: mcq.question,
-      topic: { id: mcq.topic.id, title: mcq.topic.title },
-      difficulty: mcq.difficulty,
-      section: mcq.section,
-      marks: mcq.marks,
-      negativeMarks: mcq.negativeMarks,
-      options: mcq.options.map(opt => ({ index: opt.index, text: opt.text })),
-      explanation: (mcq as any).explanation,
-    }));
 
-    return NextResponse.json(sanitized);
+    return NextResponse.json({
+      questions,
+      count: questions.length,
+      source: 'database'
+    });
   } catch (error) {
-    console.error('MCQ API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const { action, data } = body;
-
-    if (action === 'start-session') {
-      const session = await createQuizSession(data);
-      return NextResponse.json(session);
-    }
-
-    if (action === 'submit-answer') {
-      const attempt = await saveQuizAttempt(data);
-      return NextResponse.json(attempt);
-    }
-
-    if (action === 'complete-session') {
-      const session = await completeQuizSession(data.sessionId, data.correctCount);
-      return NextResponse.json(session);
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (error) {
-    console.error('MCQ POST error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('MCQ fetch error:', error);
+    return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
   }
 }

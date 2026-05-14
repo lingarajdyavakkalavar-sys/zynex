@@ -4,82 +4,109 @@ import { prisma } from '@/lib/db';
 import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 
-export async function getTopicsForMCQ(options: {
-  examType?: string;
+export async function getGATETopicsForMCQ(options: {
+  subjectId?: string;
   difficulty?: string;
-  topicId?: string;
+  branchCode?: string;
 }) {
-  const { examType, difficulty, topicId } = options;
+  const { subjectId, difficulty } = options;
 
   const where: Record<string, unknown> = {};
   
-  if (topicId) {
-    where.id = topicId;
-  }
-  if (examType) {
-    where.examType = examType as any;
+  if (subjectId) {
+    where.subjectId = subjectId;
   }
 
-  const topics = await prisma.topic.findMany({
+  const topics = await prisma.gATETopic.findMany({
     where,
     include: {
-      mcqs: {
-        where: {
-          ...(difficulty ? { difficulty: difficulty as any } : {}),
-        },
-      },
+      subject: true,
     },
   });
+
+  if (topics.length > 0 && difficulty) {
+    const mcqs = await prisma.mCQ.findMany({
+      where: {
+        gateTopicId: { in: topics.map(t => t.id) },
+        difficulty: difficulty as any,
+      },
+    });
+    return topics.map(t => ({
+      ...t,
+      mcqs: mcqs.filter(m => m.gateTopicId === t.id),
+    }));
+  }
+
+  return topics;
+}
+
+export async function getCATTopicsForMCQ(options: {
+  subsectionId?: string;
+  difficulty?: string;
+  sectionCode?: string;
+}) {
+  const { subsectionId, difficulty } = options;
+
+  const where: Record<string, unknown> = {};
+  
+  if (subsectionId) {
+    where.subsectionId = subsectionId;
+  }
+
+  const topics = await prisma.cATTopic.findMany({
+    where,
+    include: {
+      subsection: true,
+    },
+  });
+
+  if (topics.length > 0 && difficulty) {
+    const mcqs = await prisma.mCQ.findMany({
+      where: {
+        catTopicId: { in: topics.map(t => t.id) },
+        difficulty: difficulty as any,
+      },
+    });
+    return topics.map(t => ({
+      ...t,
+      mcqs: mcqs.filter(m => m.catTopicId === t.id),
+    }));
+  }
 
   return topics;
 }
 
 export async function getMCQsForQuiz(options: {
-  topicIds: string[];
+  gateTopicIds?: string[];
+  catTopicIds?: string[];
   count: number;
   difficulty?: string;
   examType?: string;
 }) {
-  const { topicIds, count, difficulty, examType } = options;
+  const { gateTopicIds, catTopicIds, count, difficulty, examType } = options;
+
+  const whereClause: Record<string, unknown> = {};
+  
+  if (gateTopicIds?.length) {
+    whereClause.gateTopicId = { in: gateTopicIds };
+  }
+  if (catTopicIds?.length) {
+    whereClause.catTopicId = { in: catTopicIds };
+  }
+  if (difficulty) {
+    whereClause.difficulty = difficulty as any;
+  }
+  if (examType) {
+    whereClause.examType = examType as any;
+  }
 
   const mcqs = await prisma.mCQ.findMany({
-    where: {
-      topicId: { in: topicIds },
-      ...(difficulty ? { difficulty: difficulty as any } : {}),
-      ...(examType ? { examType: examType as any } : {}),
-    },
-    include: {
-      options: { orderBy: { index: 'asc' } },
-      topic: true,
-    },
+    where: whereClause,
     take: count,
     orderBy: { createdAt: 'desc' },
   });
 
-  // Shuffle the MCQs
   return mcqs.sort(() => Math.random() - 0.5);
-}
-
-export async function startQuizSession(data: {
-  mode: 'PRACTICE' | 'TIMED_TEST' | 'REVISION';
-  topicIds: string[];
-  totalQuestions: number;
-  duration?: number;
-}) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
-
-  const session = await prisma.quizSession.create({
-    data: {
-      userId,
-      mode: data.mode,
-      topicIds: data.topicIds,
-      totalQuestions: data.totalQuestions,
-      duration: data.duration || 0,
-    },
-  });
-
-  return session;
 }
 
 export async function submitMCQAnswer(data: {
@@ -91,40 +118,27 @@ export async function submitMCQAnswer(data: {
   const { userId } = await auth();
   if (!userId) throw new Error('Not authenticated');
 
-  // Get the MCQ to check the answer
   const mcq = await prisma.mCQ.findUnique({
     where: { id: data.mcqId },
   });
 
   if (!mcq) throw new Error('MCQ not found');
 
-  const isCorrect = data.selectedIndex === mcq.correctIndex;
+  const isCorrect = data.selectedIndex === mcq.correctAnswer;
 
-  const attempt = await prisma.mCQAttempt.create({
+  await prisma.mCQAttempt.create({
     data: {
       userId,
       mcqId: data.mcqId,
       quizSessionId: data.quizSessionId,
-      selectedIndex: data.selectedIndex,
+      selectedAnswer: data.selectedIndex,
       isCorrect,
       timeSpent: data.timeSpent,
     },
   });
 
   revalidatePath('/practice');
-  return { attempt, isCorrect, correctIndex: mcq.correctIndex };
-}
-
-export async function completeQuizSession(sessionId: string, correctCount: number) {
-  const session = await prisma.quizSession.update({
-    where: { id: sessionId },
-    data: {
-      completedAt: new Date(),
-      correctCount,
-    },
-  });
-
-  return session;
+  return { isCorrect, correctIndex: mcq.correctAnswer };
 }
 
 export async function getQuizHistory(limit: number = 10) {
@@ -136,83 +150,9 @@ export async function getQuizHistory(limit: number = 10) {
     orderBy: { startedAt: 'desc' },
     take: limit,
     include: {
-      attempts: {
-        include: {
-          mcq: {
-            include: {
-              topic: true,
-            },
-          },
-        },
-      },
+      _count: { select: { attempts: true } },
     },
   });
 
   return sessions;
-}
-
-export async function getWeakTopics(threshold: number = 60) {
-  const { userId } = await auth();
-  if (!userId) return [];
-
-  // Get all MCQ attempts grouped by topic
-  const attempts = await prisma.mCQAttempt.groupBy({
-    by: ['mcqId'],
-    where: { userId },
-    _count: true,
-  });
-
-  // Get MCQ details for grouped results
-  const mcqIds = attempts.map(a => a.mcqId);
-  const weakMcqData = await prisma.mCQ.findMany({
-    where: { id: { in: mcqIds } },
-    include: { attempts: { where: { userId } } },
-  });
-
-  // Get weak topic IDs (accuracy below threshold)
-  const weakMcqIds = weakMcqData
-    .filter(mcq => {
-      const total = mcq.attempts.length;
-      const correct = mcq.attempts.filter(a => a.isCorrect).length;
-      const accuracy = total > 0 ? (correct / total) * 100 : 100;
-      return accuracy < threshold;
-    })
-    .map(m => m.id);
-
-  // Get the topics for these MCQs
-  const weakMcqs = await prisma.mCQ.findMany({
-    where: { id: { in: weakMcqIds } },
-    include: {
-      topic: {
-        include: {
-          unit: {
-            include: {
-              syllabus: {
-                include: {
-                  subject: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  // Group by topic
-  const topicMap = new Map();
-  weakMcqs.forEach(mcq => {
-    if (!topicMap.has(mcq.topicId)) {
-      topicMap.set(mcq.topicId, {
-        topic: mcq.topic,
-        mcqCount: 0,
-        totalAttempts: 0,
-        accuracy: 0,
-      });
-    }
-    const data = topicMap.get(mcq.topicId);
-    data.mcqCount++;
-  });
-
-  return Array.from(topicMap.values());
 }

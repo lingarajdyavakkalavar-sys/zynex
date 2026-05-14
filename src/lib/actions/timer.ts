@@ -4,11 +4,10 @@ import { prisma } from '@/lib/db';
 import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 
-export async function startStudyTimer(topicId?: string, sessionType: string = 'study') {
+export async function startStudyTimer(gateTopicId?: string, sessionType: string = 'study') {
   const { userId } = await auth();
   if (!userId) throw new Error('Not authenticated');
 
-  // Check if there's an active timer already
   const existingTimer = await prisma.studyTimer.findFirst({
     where: {
       userId,
@@ -23,7 +22,7 @@ export async function startStudyTimer(topicId?: string, sessionType: string = 's
   const timer = await prisma.studyTimer.create({
     data: {
       userId,
-      topicId,
+      topicId: gateTopicId,
       sessionType,
       startTime: new Date(),
       isActive: true,
@@ -72,7 +71,6 @@ export async function resumeStudyTimer(timerId: string) {
     throw new Error('Timer not found or access denied');
   }
 
-  // Calculate paused duration before resuming
   const pausedDuration = timer.pausedAt
     ? Math.floor((new Date().getTime() - new Date(timer.pausedAt).getTime()) / 1000)
     : 0;
@@ -102,10 +100,8 @@ export async function stopStudyTimer(timerId: string) {
   const now = new Date();
   const startTime = new Date(timer.startTime);
   
-  // Calculate total duration
   let totalDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
   
-  // If paused, add the paused time before stopping
   if (timer.pausedAt) {
     const pausedDuration = Math.floor((now.getTime() - new Date(timer.pausedAt).getTime()) / 1000);
     totalDuration = totalDuration - pausedDuration + timer.totalPaused;
@@ -113,7 +109,6 @@ export async function stopStudyTimer(timerId: string) {
     totalDuration = totalDuration - timer.totalPaused;
   }
 
-  // Update the timer
   const updatedTimer = await prisma.studyTimer.update({
     where: { id: timerId },
     data: {
@@ -124,23 +119,21 @@ export async function stopStudyTimer(timerId: string) {
     },
   });
 
-  // Update user's total study hours
   await prisma.user.update({
     where: { id: userId },
     data: {
       studyHours: {
-        increment: totalDuration / 3600, // Convert seconds to hours
+        increment: totalDuration / 3600,
       },
     },
   });
 
-  // If there's a topic, update its progress
   if (timer.topicId) {
     const existingProgress = await prisma.topicProgress.findUnique({
       where: {
-        userId_topicId: {
+        userId_gateTopicId: {
           userId,
-          topicId: timer.topicId,
+          gateTopicId: timer.topicId,
         },
       },
     });
@@ -151,35 +144,20 @@ export async function stopStudyTimer(timerId: string) {
         data: {
           timeSpent: existingProgress.timeSpent + Math.floor(totalDuration / 60),
           lastStudiedAt: now,
-          status: 'IN_PROGRESS',
         },
       });
     } else {
       await prisma.topicProgress.create({
         data: {
           userId,
-          topicId: timer.topicId,
+          gateTopicId: timer.topicId,
           timeSpent: Math.floor(totalDuration / 60),
           lastStudiedAt: now,
-          status: 'IN_PROGRESS',
+          examType: 'GATE',
         },
       });
     }
   }
-
-  // Create activity log
-  await prisma.activityLog.create({
-    data: {
-      userId,
-      action: 'study_timer_completed',
-      details: {
-        timerId,
-        topicId: timer.topicId,
-        duration: totalDuration,
-        sessionType: timer.sessionType,
-      },
-    },
-  });
 
   revalidatePath('/workspace');
   return updatedTimer;
@@ -193,9 +171,6 @@ export async function getActiveTimer() {
     where: {
       userId,
       isActive: true,
-    },
-    include: {
-      topic: true,
     },
   });
 
@@ -213,16 +188,12 @@ export async function getTimerHistory(limit: number = 20) {
     },
     orderBy: { startTime: 'desc' },
     take: limit,
-    include: {
-      topic: true,
-    },
   });
 
   return timers;
 }
 
 export async function getStudyStats(userId: string) {
-  // Get total study time
   const completedTimers = await prisma.studyTimer.findMany({
     where: {
       userId,
@@ -237,7 +208,6 @@ export async function getStudyStats(userId: string) {
   const totalSeconds = completedTimers.reduce((acc, t) => acc + t.duration, 0);
   const totalHours = totalSeconds / 3600;
 
-  // Get today's study time
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -247,7 +217,6 @@ export async function getStudyStats(userId: string) {
   const todaySeconds = todayTimers.reduce((acc, t) => acc + t.duration, 0);
   const todayHours = todaySeconds / 3600;
 
-  // Get this week's study time
   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const weekTimers = completedTimers.filter(t => 
     new Date(t.startTime) >= weekAgo
