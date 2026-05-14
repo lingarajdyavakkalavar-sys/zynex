@@ -29,13 +29,8 @@ export async function getDashboardAnalytics() {
 
   const totalTopics = await prisma.topic.count({
     where: {
-      unit: {
-        syllabus: {
-          subject: {
-            semester: { branchId: user.branchId || undefined },
-          },
-        },
-      },
+      examType: user.examType,
+      ...(user.examType === 'GATE' ? { branchCode: 'CS' } : {}),
     },
   });
 
@@ -79,7 +74,6 @@ export async function getDashboardAnalytics() {
       streakDays: user.streakDays,
       examType: user.examType,
       targetExam: user.targetExam,
-      branchId: user.branchId,
     },
     progress: {
       totalTopics,

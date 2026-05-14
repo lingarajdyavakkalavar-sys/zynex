@@ -11,8 +11,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const subjectId = searchParams.get('subjectId');
-    const branchId = searchParams.get('branchId');
-    const semesterId = searchParams.get('semesterId');
+    const examType = searchParams.get('examType');
     const isPublished = searchParams.get('isPublished');
 
     if (subjectId) {
@@ -21,8 +20,7 @@ export async function GET(req: NextRequest) {
     }
 
     const syllabi = await getAllSyllabi({
-      branchId: branchId || undefined,
-      semesterId: semesterId || undefined,
+      examType: examType || undefined,
       isPublished: isPublished === 'true' ? true : isPublished === 'false' ? false : undefined,
     });
 

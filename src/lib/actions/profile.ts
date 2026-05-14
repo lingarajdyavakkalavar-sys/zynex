@@ -10,10 +10,6 @@ export async function getUserProfile() {
   
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
-      branch: true,
-      semester: true,
-    },
   });
   
   return user;
@@ -21,9 +17,7 @@ export async function getUserProfile() {
 
 export async function updateUserProfile(data: {
   name?: string;
-  branchId?: string;
-  semesterId?: string;
-  examType?: 'GATE' | 'CAT' | 'SEMESTER' | 'UNIVERSITY';
+  examType?: 'GATE' | 'CAT';
   targetExam?: string;
   phone?: string;
   bio?: string;

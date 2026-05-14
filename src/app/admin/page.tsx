@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from '@/components/sidebar';
-import { BRANCHES, SEMESTERS, EXAMS } from '@/lib/constants';
+import { EXAMS, GATE_BRANCHES, CAT_SECTIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 interface Syllabus {
@@ -36,10 +36,8 @@ interface Syllabus {
   subject: {
     name: string;
     code: string;
-    semester: {
-      number: number;
-      branch: { name: string };
-    };
+    branchCode: string | null;
+    section: string | null;
   };
   _count: { units: number };
   createdAt: string;
@@ -50,8 +48,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [syllabi, setSyllabi] = useState<Syllabus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBranch, setSelectedBranch] = useState('cse');
-  const [selectedSemester, setSelectedSemester] = useState('5');
+  const [selectedExam, setSelectedExam] = useState('GATE');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
 
@@ -64,7 +61,7 @@ export default function AdminPage() {
   useEffect(() => {
     async function fetchSyllabi() {
       try {
-        const res = await fetch(`/api/syllabus?branchId=${selectedBranch}&semesterId=${selectedSemester}`);
+        const res = await fetch(`/api/syllabus?examType=${selectedExam}`);
         if (res.ok) {
           const data = await res.json();
           setSyllabi(data);
@@ -78,7 +75,7 @@ export default function AdminPage() {
     if (isSignedIn) {
       fetchSyllabi();
     }
-  }, [isSignedIn, selectedBranch, selectedSemester]);
+  }, [isSignedIn, selectedExam]);
 
   const togglePublish = async (id: string, isPublished: boolean) => {
     try {
@@ -162,30 +159,15 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label className="text-[#8a8a9a] text-xs">Branch</Label>
-                    <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                    <Label className="text-[#8a8a9a] text-xs">Exam Type</Label>
+                    <Select value={selectedExam} onValueChange={setSelectedExam}>
                       <SelectTrigger className="bg-[#1a1a24] border-[#1f1f2e] text-white mt-1">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-[#0a0a0f] border-[#1f1f2e]">
-                        {BRANCHES.map(branch => (
-                          <SelectItem key={branch.id} value={branch.id} className="text-white">
-                            {branch.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-[#8a8a9a] text-xs">Semester</Label>
-                    <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-                      <SelectTrigger className="bg-[#1a1a24] border-[#1f1f2e] text-white mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#0a0a0f] border-[#1f1f2e]">
-                        {SEMESTERS.map(sem => (
-                          <SelectItem key={sem.id} value={sem.id} className="text-white">
-                            {sem.name}
+                        {EXAMS.map(exam => (
+                          <SelectItem key={exam.id} value={exam.id} className="text-white">
+                            {exam.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -220,9 +202,9 @@ export default function AdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="border-[#1f1f2e]">
-                          <TableHead className="text-[#8a8a9a]">Branch</TableHead>
-                          <TableHead className="text-[#8a8a9a]">Semester</TableHead>
+                          <TableHead className="text-[#8a8a9a]">Exam</TableHead>
                           <TableHead className="text-[#8a8a9a]">Subject</TableHead>
+                          <TableHead className="text-[#8a8a9a]">Section</TableHead>
                           <TableHead className="text-[#8a8a9a]">Units</TableHead>
                           <TableHead className="text-[#8a8a9a]">Status</TableHead>
                           <TableHead className="text-[#8a8a9a]">Actions</TableHead>
@@ -231,9 +213,9 @@ export default function AdminPage() {
                       <TableBody>
                         {syllabi.length > 0 ? syllabi.map((item) => (
                           <TableRow key={item.id} className="border-[#1f1f2e]">
-                            <TableCell className="text-white">{item.subject.semester.branch.name}</TableCell>
-                            <TableCell className="text-white">Sem {item.subject.semester.number}</TableCell>
+                            <TableCell className="text-white">{selectedExam}</TableCell>
                             <TableCell className="text-white">{item.subject.name}</TableCell>
+                            <TableCell className="text-white">{item.subject.section || item.subject.branchCode || '-'}</TableCell>
                             <TableCell className="text-[#8a8a9a]">{item._count.units}</TableCell>
                             <TableCell>
                               <Badge className={cn('text-xs', getStatusColor(item.isPublished))}>

@@ -63,10 +63,8 @@ interface DashboardData {
 }
 
 const EXAM_TYPES = [
-  { id: 'GATE', name: 'GATE' },
+  { id: 'GATE', name: 'GATE - Computer Science' },
   { id: 'CAT', name: 'CAT' },
-  { id: 'SEMESTER', name: 'Semester' },
-  { id: 'UNIVERSITY', name: 'University' },
 ];
 
 export default function DashboardPage() {

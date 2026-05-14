@@ -10,10 +10,6 @@ export async function getUser() {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
-      branch: true,
-      semester: true,
-    },
   });
 
   return user;

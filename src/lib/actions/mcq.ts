@@ -6,7 +6,6 @@ import { revalidatePath } from 'next/cache';
 
 export async function getTopicsForMCQ(options: {
   examType?: string;
-  branchId?: string;
   difficulty?: string;
   topicId?: string;
 }) {
@@ -17,30 +16,15 @@ export async function getTopicsForMCQ(options: {
   if (topicId) {
     where.id = topicId;
   }
+  if (examType) {
+    where.examType = examType as any;
+  }
 
   const topics = await prisma.topic.findMany({
     where,
     include: {
-      unit: {
-        include: {
-          syllabus: {
-            include: {
-              subject: {
-                include: {
-                  semester: {
-                    include: {
-                      branch: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
       mcqs: {
         where: {
-          ...(examType ? { examType: examType as any } : {}),
           ...(difficulty ? { difficulty: difficulty as any } : {}),
         },
       },

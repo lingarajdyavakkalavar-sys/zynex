@@ -11,9 +11,7 @@ export async function getSyllabusBySubject(subjectId: string) {
   return prisma.syllabus.findFirst({
     where: { subjectId, isPublished: true },
     include: {
-      subject: {
-        include: { semester: { include: { branch: true } } },
-      },
+      subject: true,
       units: {
         orderBy: { order: 'asc' },
         include: {
@@ -30,24 +28,18 @@ export async function getSyllabusBySubject(subjectId: string) {
 }
 
 export async function getAllSyllabi(filters?: {
-  branchId?: string;
-  semesterId?: string;
+  examType?: string;
   subjectId?: string;
   isPublished?: boolean;
 }) {
   return prisma.syllabus.findMany({
     where: {
       ...(filters?.isPublished !== undefined && { isPublished: filters.isPublished }),
-      subject: {
-        ...(filters?.semesterId && { semesterId: filters.semesterId }),
-        ...(filters?.branchId && { branch: { id: filters.branchId } }),
-        ...(filters?.subjectId && { id: filters.subjectId }),
-      },
+      ...(filters?.examType && { examType: filters.examType as any }),
+      ...(filters?.subjectId && { subjectId: filters.subjectId }),
     },
     include: {
-      subject: {
-        include: { semester: { include: { branch: true } } },
-      },
+      subject: true,
       _count: { select: { units: true } },
     },
     orderBy: { createdAt: 'desc' },

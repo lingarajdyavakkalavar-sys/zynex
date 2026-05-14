@@ -11,10 +11,6 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        branch: true,
-        semester: true,
-      },
     });
 
     if (!user) {
@@ -31,10 +27,6 @@ export async function GET() {
           name: clerkUser.fullName || clerkUser.firstName || 'Student',
           imageUrl: clerkUser.imageUrl,
           role: 'STUDENT',
-        },
-        include: {
-          branch: true,
-          semester: true,
         },
       });
 
@@ -56,7 +48,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { name, phone, bio, branchId, semesterId, examType, targetExam } = body;
+    const { name, phone, bio, examType, targetExam } = body;
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -64,15 +56,9 @@ export async function PUT(request: Request) {
         ...(name !== undefined && { name }),
         ...(phone !== undefined && { phone }),
         ...(bio !== undefined && { bio }),
-        ...(branchId !== undefined && { branchId: branchId || null }),
-        ...(semesterId !== undefined && { semesterId: semesterId || null }),
         ...(examType !== undefined && { examType: examType as any }),
         ...(targetExam !== undefined && { targetExam }),
         updatedAt: new Date(),
-      },
-      include: {
-        branch: true,
-        semester: true,
       },
     });
 

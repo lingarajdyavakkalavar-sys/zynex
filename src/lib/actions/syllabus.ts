@@ -201,15 +201,7 @@ export async function getSyllabusWithProgress(syllabusId: string, userId: string
   const syllabus = await prisma.syllabus.findUnique({
     where: { id: syllabusId },
     include: {
-      subject: {
-        include: {
-          semester: {
-            include: {
-              branch: true,
-            },
-          },
-        },
-      },
+      subject: true,
       units: {
         orderBy: { order: 'asc' },
         include: {
@@ -230,8 +222,6 @@ export async function getSyllabusWithProgress(syllabusId: string, userId: string
 }
 
 export async function getAllSyllabiWithFilters(options: {
-  branchId?: string;
-  semesterId?: string;
   examType?: string;
   isPublished?: boolean;
 }) {
@@ -241,26 +231,14 @@ export async function getAllSyllabiWithFilters(options: {
     where.isPublished = options.isPublished;
   }
 
-  if (options.examType || options.semesterId || options.branchId) {
-    const subjectFilter: Record<string, unknown> = {};
-    if (options.examType) subjectFilter.examType = options.examType;
-    if (options.semesterId) subjectFilter.semesterId = options.semesterId;
-    if (options.branchId) subjectFilter.semester = { branchId: options.branchId };
-    where.subject = subjectFilter;
+  if (options.examType) {
+    where.examType = options.examType;
   }
 
   const syllabi = await prisma.syllabus.findMany({
     where,
     include: {
-      subject: {
-        include: {
-          semester: {
-            include: {
-              branch: true,
-            },
-          },
-        },
-      },
+      subject: true,
       units: {
         include: {
           _count: {
