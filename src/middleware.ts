@@ -3,26 +3,33 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export default async function middleware(req: NextRequest) {
-  const { userId } = await auth();
-  const isAuthRoute = req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/sign-up');
-  const isProtectedRoute = req.nextUrl.pathname.startsWith('/dashboard') || 
-                           req.nextUrl.pathname.startsWith('/workspace') ||
-                           req.nextUrl.pathname.startsWith('/practice') ||
-                           req.nextUrl.pathname.startsWith('/planner') ||
-                           req.nextUrl.pathname.startsWith('/notebook') ||
-                           req.nextUrl.pathname.startsWith('/admin');
+  try {
+    const { userId } = await auth();
+    const pathname = req.nextUrl.pathname;
+    
+    const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/sign-up');
+    const isProtectedRoute = pathname.startsWith('/dashboard') || 
+                             pathname.startsWith('/workspace') ||
+                             pathname.startsWith('/practice') ||
+                             pathname.startsWith('/planner') ||
+                             pathname.startsWith('/notebook') ||
+                             pathname.startsWith('/admin');
 
-  if (isProtectedRoute && !userId) {
-    const signInUrl = new URL('/login', req.url);
-    signInUrl.searchParams.set('redirect_url', req.nextUrl.pathname);
-    return NextResponse.redirect(signInUrl);
+    if (isProtectedRoute && !userId) {
+      const signInUrl = new URL('/login', req.url);
+      signInUrl.searchParams.set('redirect_url', pathname);
+      return NextResponse.redirect(signInUrl);
+    }
+
+    if (isAuthRoute && userId) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+
+    return NextResponse.next();
+  } catch (error) {
+    console.error('Middleware error:', error);
+    return NextResponse.next();
   }
-
-  if (isAuthRoute && userId) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
-
-  return NextResponse.next();
 }
 
 export const config = {
