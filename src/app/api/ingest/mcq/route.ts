@@ -1,0 +1,167 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db/prisma';
+
+interface MCQInput {
+  question: string;
+  options: { index: number; text: string }[];
+  correctAnswer: number;
+  explanation?: string;
+  marks?: number;
+  negativeMarks?: number;
+  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+  year?: number;
+  paperCode?: string;
+  setCode?: string;
+  gateTopicId?: string;
+  catTopicId?: string;
+  gateBranchCode?: string;
+  catSectionCode?: string;
+  sourceType?: 'OFFICIAL_PAPER' | 'AI_GENERATED' | 'MANUAL';
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { mcqs, examType, gateTopicId, catTopicId, gateBranchCode, catSectionCode, year, paperCode } = body as {
+      mcqs: MCQInput[];
+      examType: 'GATE' | 'CAT';
+      gateTopicId?: string;
+      catTopicId?: string;
+      gateBranchCode?: string;
+      catSectionCode?: string;
+      year?: number;
+      paperCode?: string;
+    };
+
+    if (!mcqs || !Array.isArray(mcqs) || mcqs.length === 0) {
+      return NextResponse.json({ error: 'mcqs array is required' }, { status: 400 });
+    }
+
+    if (!examType) {
+      return NextResponse.json({ error: 'examType is required (GATE or CAT)' }, { status: 400 });
+    }
+
+    const results = await Promise.allSettled(
+      mcqs.map(async (mcq, index) => {
+        try {
+          const created = await prisma.mCQ.create({
+            data: {
+              question: mcq.question,
+              options: mcq.options,
+              correctAnswer: mcq.correctAnswer,
+              explanation: mcq.explanation || null,
+              difficulty: mcq.difficulty || 'MEDIUM',
+              examType,
+              marks: mcq.marks || (examType === 'GATE' ? 1 : 1),
+              negativeMarks: mcq.negativeMarks || (examType === 'GATE' ? 0.33 : 0),
+              year: mcq.year || year,
+              paperCode: mcq.paperCode || paperCode,
+              setCode: mcq.setCode || null,
+              gateTopicId: examType === 'GATE' ? (mcq.gateTopicId || gateTopicId) : null,
+              catTopicId: examType === 'CAT' ? (mcq.catTopicId || catTopicId) : null,
+              gateBranchCode: examType === 'GATE' ? (mcq.gateBranchCode || gateBranchCode) : null,
+              catSectionCode: examType === 'CAT' ? (mcq.catSectionCode || catSectionCode) : null,
+              sourceType: mcq.sourceType || 'OFFICIAL_PAPER',
+              isPreviousYear: year !== undefined,
+              tags: [examType],
+            },
+          });
+
+          return { index, success: true, id: created.id };
+        } catch (err) {
+          return { index, success: false, error: String(err) };
+        }
+      })
+    );
+
+    const succeeded = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = results.filter(r => r.status === 'fulfilled' && !r.value.success).length;
+    const errors = results.filter(r => r.status === 'rejected');
+
+    return NextResponse.json({
+      total: mcqs.length,
+      succeeded,
+      failed,
+      errors: errors.length > 0 ? errors.map(e => e.reason) : undefined,
+      results: results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: 'unknown' }),
+    });
+  } catch (error) {
+    console.error('MCQ ingestion error:', error);
+    return NextResponse.json({ error: 'MCQ ingestion failed' }, { status: 500 });
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const examType = searchParams.get('examType') as 'GATE' | 'CAT' | null;
+    const year = searchParams.get('year');
+    const branchCode = searchParams.get('branchCode');
+    const sectionCode = searchParams.get('sectionCode');
+    const gateTopicId = searchParams.get('gateTopicId');
+    const catTopicId = searchParams.get('catTopicId');
+    const limit = parseInt(searchParams.get('limit') || '100');
+    const offset = parseInt(searchParams.get('offset') || '0');
+
+    const where: Record<string, unknown> = {};
+
+    if (examType) where.examType = examType;
+    if (year) where.year = parseInt(year);
+    if (branchCode) where.gateBranchCode = branchCode;
+    if (sectionCode) where.catSectionCode = sectionCode;
+    if (gateTopicId) where.gateTopicId = gateTopicId;
+    if (catTopicId) where.catTopicId = catTopicId;
+
+    const [mcqs, total] = await Promise.all([
+      prisma.mCQ.findMany({
+        where,
+        orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
+        take: limit,
+        skip: offset,
+      }),
+      prisma.mCQ.count({ where }),
+    ]);
+
+    return NextResponse.json({ mcqs, total, limit, offset });
+  } catch (error) {
+    console.error('Fetch MCQs error:', error);
+    return NextResponse.json({ error: 'Fetch failed' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const ids = searchParams.get('ids');
+
+    if (!ids) {
+      return NextResponse.json({ error: 'ids query param required' }, { status: 400 });
+    }
+
+    const idArray = ids.split(',').filter(Boolean);
+    const deleted = await prisma.mCQ.deleteMany({
+      where: { id: { in: idArray } },
+    });
+
+    return NextResponse.json({ deleted: deleted.count });
+  } catch (error) {
+    console.error('Delete MCQs error:', error);
+    return NextResponse.json({ error: 'Delete failed' }, { status: 500 });
+  }
+}
