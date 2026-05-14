@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,19 +12,20 @@ import {
   BookOpen,
   ChevronRight,
   ChevronDown,
-  CheckCircle2,
   Circle,
   Lightbulb,
   Target,
   Sparkles,
+  Plus,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from '@/components/sidebar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 const aiActions = [
@@ -50,16 +51,27 @@ interface Unit {
 interface Syllabus {
   id: string;
   title: string;
+  subject: { name: string };
   units: Unit[];
+}
+
+interface SyllabusOption {
+  id: string;
+  title: string;
+  subjectName: string;
+  unitCount: number;
 }
 
 export default function WorkspacePage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const [syllabi, setSyllabi] = useState<SyllabusOption[]>([]);
+  const [selectedSyllabusId, setSelectedSyllabusId] = useState<string>('');
   const [syllabus, setSyllabus] = useState<Syllabus | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [expandedUnits, setExpandedUnits] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syllabiLoading, setSyllabiLoading] = useState(true);
 
   const [timerActive, setTimerActive] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false);
@@ -73,26 +85,52 @@ export default function WorkspacePage() {
   }, [isSignedIn, router]);
 
   useEffect(() => {
-    async function fetchSyllabus() {
+    async function fetchSyllabi() {
       try {
-        const res = await fetch('/api/syllabus?subjectId=cse-ds-1');
+        const res = await fetch('/api/syllabus?isPublished=true');
         if (res.ok) {
           const data = await res.json();
-          setSyllabus(data);
-          if (data?.units?.length > 0 && data.units[0].topics?.length > 0) {
-            setSelectedTopic(data.units[0].topics[0]);
+          const options = data.map((s: any) => ({
+            id: s.id,
+            title: s.title,
+            subjectName: s.subject?.name || 'Unknown',
+            unitCount: s._count?.units || 0,
+          }));
+          setSyllabi(options);
+          if (options.length > 0 && !selectedSyllabusId) {
+            setSelectedSyllabusId(options[0].id);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch syllabus:', error);
+        console.error('Failed to fetch syllabi:', error);
       } finally {
-        setLoading(false);
+        setSyllabiLoading(false);
       }
     }
     if (isSignedIn) {
-      fetchSyllabus();
+      fetchSyllabi();
     }
   }, [isSignedIn]);
+
+  useEffect(() => {
+    async function fetchSyllabusDetail() {
+      if (!selectedSyllabusId) return;
+      try {
+        const res = await fetch(`/api/syllabus?subjectId=${selectedSyllabusId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSyllabus(data);
+          setSelectedTopic(null);
+          setExpandedUnits([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch syllabus:', error);
+      }
+    }
+    if (selectedSyllabusId) {
+      fetchSyllabusDetail();
+    }
+  }, [selectedSyllabusId]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -187,12 +225,34 @@ export default function WorkspacePage() {
       <main className="pl-[280px] pt-16">
         <div className="flex h-[calc(100vh-4rem)]">
           <div className="w-72 border-r border-[#1f1f2e] bg-[#0a0a0f] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-[#1f1f2e] flex items-center justify-between">
-              <div>
+            <div className="p-4 border-b border-[#1f1f2e]">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="text-white font-semibold">Syllabus</h2>
-                <p className="text-[#8a8a9a] text-xs">Data Structures</p>
               </div>
-              <Badge className="bg-[#0066cc]/20 text-[#0066cc]">65%</Badge>
+              {syllabiLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : syllabi.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-[#8a8a9a] text-sm mb-2">No syllabi found</p>
+                  <Button size="sm" onClick={() => router.push('/admin')} className="bg-[#0066cc] hover:bg-[#0052a3]">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Syllabus
+                  </Button>
+                </div>
+              ) : (
+                <Select value={selectedSyllabusId} onValueChange={setSelectedSyllabusId}>
+                  <SelectTrigger className="bg-[#1a1a24] border-[#1f1f2e] text-white text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0a0a0f] border-[#1f1f2e]">
+                    {syllabi.map(s => (
+                      <SelectItem key={s.id} value={s.id} className="text-white">
+                        {s.subjectName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <ScrollArea className="flex-1">
@@ -201,7 +261,7 @@ export default function WorkspacePage() {
                   [...Array(5)].map((_, i) => (
                     <Skeleton key={i} className="h-10 w-full mb-2" />
                   ))
-                ) : syllabus?.units ? (
+                ) : syllabus?.units && syllabus.units.length > 0 ? (
                   syllabus.units.map((unit) => (
                     <div key={unit.id}>
                       <button
@@ -246,7 +306,9 @@ export default function WorkspacePage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-center text-[#8a8a9a] py-8">No syllabus found</p>
+                  <p className="text-center text-[#8a8a9a] py-8">
+                    {syllabi.length === 0 ? 'Add a syllabus first' : 'No units in this syllabus'}
+                  </p>
                 )}
               </div>
             </ScrollArea>
@@ -308,18 +370,21 @@ export default function WorkspacePage() {
                 >
                   <h3 className="text-xl font-semibold text-white mb-4">{selectedTopic.title}</h3>
                   <p className="text-[#8a8a9a] leading-relaxed">
-                    Study this topic thoroughly and use the AI tools below for better understanding.
+                    Study this topic thoroughly. Use the AI tools on the right for explanations, summaries, and practice questions.
                   </p>
-                  <div className="mt-6 grid grid-cols-3 gap-4">
-                    {aiActions.map((action) => (
-                      <button
-                        key={action.label}
-                        className="p-4 rounded-sm border border-[#1f1f2e] hover:border-[#0066cc]/30 transition-colors text-left"
-                      >
-                        <action.icon className="w-6 h-6 mb-2" style={{ color: action.color }} />
-                        <span className="text-white text-sm font-medium">{action.label}</span>
-                      </button>
-                    ))}
+                  <div className="mt-6">
+                    <h4 className="text-white font-medium mb-3">Quick Actions</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {aiActions.map((action) => (
+                        <button
+                          key={action.label}
+                          className="p-4 rounded-sm border border-[#1f1f2e] hover:border-[#0066cc]/30 transition-colors text-left"
+                        >
+                          <action.icon className="w-6 h-6 mb-2" style={{ color: action.color }} />
+                          <span className="text-white text-sm font-medium">{action.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </motion.div>
               ) : (
@@ -327,7 +392,13 @@ export default function WorkspacePage() {
                   <div className="text-center">
                     <BookOpen className="w-16 h-16 text-[#1f1f2e] mx-auto mb-4" />
                     <h3 className="text-white text-lg mb-2">Select a topic to start learning</h3>
-                    <p className="text-[#8a8a9a]">Choose a topic from the syllabus sidebar</p>
+                    <p className="text-[#8a8a9a] mb-4">Choose a topic from the syllabus sidebar</p>
+                    {syllabi.length === 0 && (
+                      <Button onClick={() => router.push('/admin')} className="bg-[#0066cc] hover:bg-[#0052a3]">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Your First Syllabus
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -350,6 +421,11 @@ export default function WorkspacePage() {
                   >
                     <action.icon className="w-5 h-5 mb-2" style={{ color: action.color }} />
                     <span className="text-white font-medium">{action.label}</span>
+                    <p className="text-[#8a8a9a] text-xs mt-1">
+                      {action.label === 'Explain' && 'Get AI explanation'}
+                      {action.label === 'Generate MCQs' && 'Create practice questions'}
+                      {action.label === 'Summarize' && 'Get topic summary'}
+                    </p>
                   </button>
                 ))}
               </div>

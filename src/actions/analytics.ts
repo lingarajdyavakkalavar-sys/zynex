@@ -68,6 +68,8 @@ export async function getDashboardAnalytics() {
   const weeklyStudy = user.studyPlanners[0]?.dailyTargets || [];
   const weeklyHours = weeklyStudy.reduce((sum, t) => sum + t.completedHours, 0);
 
+  const isNewUser = totalTopics === 0 && user.topicProgress.length === 0 && user.mcqAttempts.length === 0;
+
   return {
     user: {
       name: user.name,
@@ -77,6 +79,7 @@ export async function getDashboardAnalytics() {
       streakDays: user.streakDays,
       examType: user.examType,
       targetExam: user.targetExam,
+      branchId: user.branchId,
     },
     progress: {
       totalTopics,
@@ -96,6 +99,7 @@ export async function getDashboardAnalytics() {
     backlogCount: user.backlogTopics.length,
     weeklyStudyHours: Math.round(weeklyHours * 10) / 10,
     upcomingExams,
+    isNewUser,
   };
 }
 

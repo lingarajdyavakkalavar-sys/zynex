@@ -11,13 +11,25 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const topicIds = searchParams.get('topicIds')?.split(',').filter(Boolean);
+    const subjectId = searchParams.get('subjectId');
     const limit = parseInt(searchParams.get('limit') || '10');
     const difficultyParam = searchParams.get('difficulty');
     const difficulty: string | undefined = difficultyParam ?? undefined;
     const examTypeParam = searchParams.get('examType');
     const examType: string | undefined = examTypeParam ?? undefined;
 
-    const mcqs = await getMCQsForQuiz({ topicIds, limit, difficulty, examType });
+    let mcqs;
+    if (subjectId) {
+      mcqs = await getMCQsForQuiz({ 
+        topicIds: undefined, 
+        limit, 
+        difficulty, 
+        examType,
+        subjectId 
+      });
+    } else {
+      mcqs = await getMCQsForQuiz({ topicIds, limit, difficulty, examType });
+    }
     
     const sanitized = mcqs.map(mcq => ({
       id: mcq.id,
@@ -28,6 +40,7 @@ export async function GET(req: NextRequest) {
       marks: mcq.marks,
       negativeMarks: mcq.negativeMarks,
       options: mcq.options.map(opt => ({ index: opt.index, text: opt.text })),
+      explanation: (mcq as any).explanation,
     }));
 
     return NextResponse.json(sanitized);

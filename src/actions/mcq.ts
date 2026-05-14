@@ -17,11 +17,13 @@ export async function getMCQsForQuiz(params: {
   limit?: number;
   difficulty?: string;
   examType?: string;
+  subjectId?: string;
 }) {
-  const { topicIds, limit = 10, difficulty, examType } = params;
+  const { topicIds, limit = 10, difficulty, examType, subjectId } = params;
 
   return prisma.mCQ.findMany({
     where: {
+      ...(subjectId && { topic: { unit: { syllabus: { subjectId } } } }),
       ...(topicIds && topicIds.length > 0 && { topicId: { in: topicIds } }),
       ...(difficulty && { difficulty: difficulty as any }),
       ...(examType && { examType: examType as any }),

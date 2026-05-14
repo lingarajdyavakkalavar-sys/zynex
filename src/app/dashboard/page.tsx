@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Brain,
   Trophy,
+  Plus,
+  Settings,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +26,8 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from '@/components/sidebar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 const container = {
   hidden: { opacity: 0 },
@@ -41,6 +45,7 @@ interface DashboardData {
     studyHours: number;
     streakDays: number;
     examType: string;
+    branchId: string | null;
   };
   progress: {
     totalTopics: number;
@@ -54,13 +59,23 @@ interface DashboardData {
   weeklyStudyHours: number;
   backlogCount: number;
   upcomingExams: { id: string; title: string; targetDate: Date; daysLeft: number }[];
+  isNewUser: boolean;
 }
+
+const EXAM_TYPES = [
+  { id: 'GATE', name: 'GATE' },
+  { id: 'CAT', name: 'CAT' },
+  { id: 'SEMESTER', name: 'Semester' },
+  { id: 'UNIVERSITY', name: 'University' },
+];
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSetup, setShowSetup] = useState(false);
+  const [selectedExam, setSelectedExam] = useState('UNIVERSITY');
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -75,6 +90,9 @@ export default function DashboardPage() {
         if (res.ok) {
           const json = await res.json();
           setData(json);
+          if (json.isNewUser) {
+            setShowSetup(true);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch dashboard:', error);
@@ -87,11 +105,90 @@ export default function DashboardPage() {
     }
   }, [isSignedIn]);
 
+  const handleSetup = async () => {
+    try {
+      await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examType: selectedExam }),
+      });
+      setShowSetup(false);
+      router.refresh();
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
+  };
+
   if (!isSignedIn || !user) {
     return null;
   }
 
   const readinessScore = data?.progress.completionPercentage || 0;
+
+  if (showSetup || data?.isNewUser) {
+    return (
+      <div className="min-h-screen bg-[#050508]">
+        <Sidebar collapsed={false} onToggle={() => {}} />
+        <main className="pl-[280px] pt-16">
+          <div className="p-6 max-w-2xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center mb-8"
+            >
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#0066cc] to-[#003d80] flex items-center justify-center mx-auto mb-6">
+                <BookOpen className="w-10 h-10 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold text-white mb-2">Welcome, {user.firstName}!</h1>
+              <p className="text-[#8a8a9a]">Let's set up your learning preferences</p>
+            </motion.div>
+
+            <Card className="bg-[#0a0a0f] border-[#1f1f2e]">
+              <CardContent className="p-6 space-y-6">
+                <div>
+                  <Label className="text-white mb-2 block">What exam are you preparing for?</Label>
+                  <Select value={selectedExam} onValueChange={setSelectedExam}>
+                    <SelectTrigger className="bg-[#1a1a24] border-[#1f1f2e] text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0a0a0f] border-[#1f1f2e]">
+                      {EXAM_TYPES.map(exam => (
+                        <SelectItem key={exam.id} value={exam.id} className="text-white">
+                          {exam.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="bg-[#1a1a24] rounded-sm p-4">
+                  <h3 className="text-white font-medium mb-2">What's next?</h3>
+                  <ul className="text-[#8a8a9a] text-sm space-y-2">
+                    <li className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-[#0066cc]" />
+                      Go to Admin page to add your syllabus
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-[#0066cc]" />
+                      Use Workspace to select topics and start studying
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-[#0066cc]" />
+                      Take quizzes to test your knowledge
+                    </li>
+                  </ul>
+                </div>
+
+                <Button onClick={handleSetup} className="w-full bg-[#0066cc] hover:bg-[#0052a3]">
+                  Continue to Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050508]">
@@ -109,10 +206,14 @@ export default function DashboardPage() {
                 Welcome back, {user.firstName || 'Student'} 👋
               </h1>
               <p className="text-[#8a8a9a] mt-1">
-                {data?.user.examType ? `${data.user.examType} preparation` : 'Track your progress'}
+                {data?.user.examType ? `${data.user.examType} preparation` : 'Start your learning journey'}
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => router.push('/admin')} className="text-[#8a8a9a]">
+                <Settings className="w-4 h-4 mr-1" />
+                Setup
+              </Button>
               <Badge className="bg-[#0066cc]/20 text-[#0066cc] border-[#0066cc]/30">
                 <Flame className="w-3 h-3 mr-1" />
                 {data?.user.streakDays || 0} day streak
@@ -130,6 +231,20 @@ export default function DashboardPage() {
                 </Card>
               ))}
             </div>
+          ) : data?.progress.totalTopics === 0 ? (
+            <Card className="bg-[#0a0a0f] border-[#1f1f2e]">
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-[#0066cc]/20 flex items-center justify-center mx-auto mb-4">
+                  <Plus className="w-8 h-8 text-[#0066cc]" />
+                </div>
+                <h3 className="text-white text-lg font-semibold mb-2">Get Started</h3>
+                <p className="text-[#8a8a9a] mb-6">Add your first syllabus to start learning</p>
+                <Button onClick={() => router.push('/admin')} className="bg-[#0066cc] hover:bg-[#0052a3]">
+                  Go to Admin
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="bg-[#0a0a0f] border-[#1f1f2e]">
@@ -201,26 +316,18 @@ export default function DashboardPage() {
               <Card className="bg-[#0a0a0f] border-[#1f1f2e]">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-white text-lg">Continue Learning</CardTitle>
-                  <Button variant="ghost" size="sm" className="text-[#0066cc]">
+                  <Button variant="ghost" size="sm" onClick={() => router.push('/workspace')} className="text-[#0066cc]">
                     View All <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="premium-card p-4 hover:border-[#0066cc]/30 cursor-pointer group">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-sm bg-[#0066cc]/20 flex items-center justify-center flex-shrink-0">
-                          <BookOpen className="w-6 h-6 text-[#0066cc]" />
-                        </div>
-                        <div>
-                          <h3 className="text-white font-semibold">Data Structures</h3>
-                          <p className="text-[#8a8a9a] text-sm mt-1">In Progress • Continue where you left off</p>
-                          <Progress value={65} className="mt-2 w-48 h-1.5" />
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-[#8a8a9a] group-hover:text-white transition-colors" />
+                  <Button onClick={() => router.push('/workspace')} className="w-full bg-[#1a1a24] hover:bg-[#252530] border border-[#1f1f2e] justify-start p-6 h-auto">
+                    <BookOpen className="w-8 h-8 text-[#0066cc] mr-4" />
+                    <div className="text-left">
+                      <p className="text-white font-medium">Start Learning</p>
+                      <p className="text-[#8a8a9a] text-sm">Select topics from your syllabus</p>
                     </div>
-                  </div>
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>
@@ -234,23 +341,17 @@ export default function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button className="w-full bg-[#0066cc] hover:bg-[#0052a3] justify-start" asChild>
-                    <a href="/workspace">
-                      <BookOpen className="w-4 h-4 mr-2" />
-                      Continue Learning
-                    </a>
+                  <Button onClick={() => router.push('/workspace')} className="w-full bg-[#0066cc] hover:bg-[#0052a3] justify-start">
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    Continue Learning
                   </Button>
-                  <Button variant="outline" className="w-full border-[#1f1f2e] text-white hover:bg-[#1a1a24] justify-start" asChild>
-                    <a href="/practice">
-                      <Target className="w-4 h-4 mr-2" />
-                      Take a Quiz
-                    </a>
+                  <Button variant="outline" onClick={() => router.push('/practice')} className="w-full border-[#1f1f2e] text-white hover:bg-[#1a1a24] justify-start">
+                    <Target className="w-4 h-4 mr-2" />
+                    Take a Quiz
                   </Button>
-                  <Button variant="outline" className="w-full border-[#1f1f2e] text-white hover:bg-[#1a1a24] justify-start" asChild>
-                    <a href="/planner">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      View Planner
-                    </a>
+                  <Button variant="outline" onClick={() => router.push('/planner')} className="w-full border-[#1f1f2e] text-white hover:bg-[#1a1a24] justify-start">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    View Planner
                   </Button>
                 </CardContent>
               </Card>
@@ -288,27 +389,18 @@ export default function DashboardPage() {
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-white text-lg flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-[#8a8a9a]" />
-                    Upcoming Deadlines
+                    Quick Links
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {data?.upcomingExams?.length ? (
-                    data.upcomingExams.slice(0, 3).map((exam) => (
-                      <div key={exam.id} className="flex items-center justify-between p-3 rounded-sm bg-[#1a1a24]">
-                        <div>
-                          <p className="text-white font-medium">{exam.title}</p>
-                          <p className="text-[#8a8a9a] text-xs">
-                            {new Date(exam.targetDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Badge className="bg-[#0066cc]/20 text-[#0066cc]">
-                          {exam.daysLeft} days
-                        </Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-[#8a8a9a] text-center py-4">No upcoming deadlines</p>
-                  )}
+                  <Button variant="outline" onClick={() => router.push('/admin')} className="w-full border-[#1f1f2e] text-white hover:bg-[#1a1a24] justify-start">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Manage Syllabus
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push('/notebook')} className="w-full border-[#1f1f2e] text-white hover:bg-[#1a1a24] justify-start">
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    My Notes
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>
