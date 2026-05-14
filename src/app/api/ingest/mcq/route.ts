@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
               catTopicId: examType === 'CAT' ? (mcq.catTopicId || catTopicId) : null,
               gateBranchCode: examType === 'GATE' ? (mcq.gateBranchCode || gateBranchCode) : null,
               catSectionCode: examType === 'CAT' ? (mcq.catSectionCode || catSectionCode) : null,
-              sourceType: mcq.sourceType || 'OFFICIAL_PAPER',
+              sourceType: mcq.sourceType as any || 'OFFICIAL_PAPER',
               isPreviousYear: year !== undefined,
               tags: [examType],
             },

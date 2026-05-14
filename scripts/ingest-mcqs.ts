@@ -124,7 +124,7 @@ async function ingestMCQs(mcqs: ExtractedMCQ[], config: PaperConfig): Promise<{ 
           catSectionCode: config.sectionCode || null,
           gateTopicId: config.gateTopicId || null,
           catTopicId: config.catTopicId || null,
-          sourceType: 'OFFICIAL_PAPER',
+          sourceType: 'OFFICIAL_PAPER' as any,
           isPreviousYear: true,
           tags: [`GATE-${config.year}`, config.branchCode || ''],
         },
