@@ -94,8 +94,5 @@ export async function createOrUpdateUser() {
 }
 
 export function getUserId(): string {
-  if (!isAuthEnabled()) {
-    return 'demo-user-123';
-  }
-  return '';
+  return 'demo-user-123';
 }

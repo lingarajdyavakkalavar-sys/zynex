@@ -10,9 +10,9 @@ interface MockUser {
   emailAddresses: { emailAddress: string }[];
 }
 
+// For client-side: always return mock to avoid SSR/build issues
+// Server-side getUser() handles real auth
 export function useUser() {
-  // Always return mock user for demo mode
-  // This avoids any Clerk imports during build
   const mockUser: MockUser = {
     id: 'demo-user-123',
     firstName: 'Demo',

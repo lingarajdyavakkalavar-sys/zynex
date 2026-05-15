@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { GraduationCap, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 function LoadingState() {
   return (
@@ -70,12 +71,36 @@ function MockLogin({ redirectUrl }: { redirectUrl: string }) {
   );
 }
 
+function ClerkLogin({ redirectUrl }: { redirectUrl: string }) {
+  const { SignIn } = require('@clerk/nextjs');
+
+  return (
+    <SignIn 
+      routing="virtual"
+      afterSignInUrl={redirectUrl}
+      signUpFallbackRedirectUrl={redirectUrl}
+      appearance={{
+        elements: {
+          rootBox: 'w-full',
+          card: 'bg-[#1a1a24] border-[#2a2a3a]',
+          headerTitle: 'text-white',
+          headerSubtitle: 'text-[#8a8a9a]',
+          socialButtonsBlockButton: 'bg-[#2a2a3a] text-white border-[#3a3a4a]',
+          formFieldInput: 'bg-[#1a1a24] border-[#2a2a3a] text-white',
+          formButtonPrimary: 'bg-[#0066cc] hover:bg-[#0052a3]',
+          footerActionLink: 'text-[#0066cc]',
+        },
+      }}
+    />
+  );
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard';
+  const authEnabled = isAuthEnabled();
 
-  // Always use mock login in demo mode
   return (
     <div className="min-h-screen bg-[#050508] flex">
       <div className="flex-1 flex items-center justify-center p-8">
@@ -93,10 +118,14 @@ function LoginContent() {
 
           <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
           <p className="text-[#8a8a9a] mb-8">
-            Sign in to continue your learning
+            {authEnabled ? 'Sign in to continue your learning' : 'Sign in to continue your learning'}
           </p>
 
-          <MockLogin redirectUrl={redirectUrl} />
+          {authEnabled ? (
+            <ClerkLogin redirectUrl={redirectUrl} />
+          ) : (
+            <MockLogin redirectUrl={redirectUrl} />
+          )}
         </motion.div>
       </div>
 

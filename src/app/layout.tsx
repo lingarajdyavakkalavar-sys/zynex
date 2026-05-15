@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/providers';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -21,6 +22,23 @@ export const metadata: Metadata = {
   },
 };
 
+function ClerkProviderWrapper({ children }: { children: React.ReactNode }) {
+  const authEnabled = isAuthEnabled();
+  
+  if (!authEnabled) {
+    return <>{children}</>;
+  }
+  
+  const { ClerkProvider } = require('@clerk/nextjs');
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
+  
+  return (
+    <ClerkProvider publishableKey={publishableKey}>
+      {children}
+    </ClerkProvider>
+  );
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,7 +47,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased bg-background font-sans`}>
-        <Providers>{children}</Providers>
+        <ClerkProviderWrapper>
+          <Providers>{children}</Providers>
+        </ClerkProviderWrapper>
       </body>
     </html>
   );
