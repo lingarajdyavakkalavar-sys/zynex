@@ -2,11 +2,20 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export async function getUserProfile() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   return prisma.user.findUnique({
     where: { id: userId },
@@ -20,8 +29,13 @@ export async function updateUserProfile(data: {
   phone?: string;
   bio?: string;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Unauthorized');
+  }
 
   const updateData: any = { ...data };
   if (data.examType) updateData.examType = data.examType;

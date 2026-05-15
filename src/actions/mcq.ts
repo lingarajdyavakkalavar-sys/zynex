@@ -2,7 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export async function getMCQsByTopic(gateTopicId: string) {
   return prisma.mCQ.findMany({
@@ -46,9 +50,6 @@ export async function createMCQ(data: {
   questionType?: string;
   explanation?: string;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
-
   return prisma.mCQ.create({
     data: {
       question: data.question,
@@ -77,12 +78,17 @@ export async function saveQuizAttempt(data: {
   quizSessionId?: string;
   isMarkedForReview?: boolean;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+  const userId = isAuthEnabled() ? null : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Unauthorized');
+  }
 
   return prisma.mCQAttempt.create({
     data: {
-      userId,
+      userId: userId!,
       ...data,
     },
   });
@@ -97,12 +103,17 @@ export async function createQuizSession(data: {
   branchCode?: string;
   sectionCode?: string;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+  const userId = isAuthEnabled() ? null : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Unauthorized');
+  }
 
   return prisma.quizSession.create({
     data: {
-      userId,
+      userId: userId!,
       examType: data.examType as any,
       mode: data.mode as any,
       totalQuestions: data.totalQuestions,
@@ -131,25 +142,35 @@ export async function completeQuizSession(id: string, correctCount: number, obta
 }
 
 export async function getQuizHistory(limit = 20) {
-  const { userId } = await auth();
-  if (!userId) return [];
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return [];
+  }
 
   return prisma.quizSession.findMany({
-    where: { userId },
+    where: { userId: userId || undefined },
     orderBy: { startedAt: 'desc' },
     take: limit,
   });
 }
 
 export async function getUserMCQAnalytics() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   const [total, correct, byDifficulty] = await Promise.all([
-    prisma.mCQAttempt.count({ where: { userId } }),
-    prisma.mCQAttempt.count({ where: { userId, isCorrect: true } }),
+    prisma.mCQAttempt.count({ where: { userId: userId || undefined } }),
+    prisma.mCQAttempt.count({ where: { userId: userId || undefined, isCorrect: true } }),
     prisma.mCQAttempt.findMany({
-      where: { userId },
+      where: { userId: userId || undefined },
       include: { mcq: { select: { difficulty: true } } },
     }),
   ]);

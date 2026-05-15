@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/prisma';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let userId = 'demo-user-123';
+    
+    if (isAuthEnabled()) {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId: clerkUserId } = await auth();
+      if (!clerkUserId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      userId = clerkUserId;
     }
 
     const body = await req.json();

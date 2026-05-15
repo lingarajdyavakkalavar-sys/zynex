@@ -1,31 +1,31 @@
 import { NextResponse } from 'next/server';
-import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const userId = isAuthEnabled() ? undefined : 'demo-user-123';
+    
+    if (isAuthEnabled()) {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId: clerkUserId } = await auth();
+      if (!clerkUserId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
     }
 
-    const user = await prisma.user.findUnique({
+    const user = userId ? await prisma.user.findUnique({
       where: { id: userId },
-    });
+    }) : null;
 
     if (!user) {
-      // Create user from Clerk data
-      const clerkUser = await currentUser();
-      if (!clerkUser) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
-      }
-
-      const newUser = await prisma.user.create({
-        data: {
-          id: userId,
-          email: clerkUser.emailAddresses[0]?.emailAddress || '',
-          name: clerkUser.fullName || clerkUser.firstName || 'Student',
-          imageUrl: clerkUser.imageUrl,
+      const newUser = await prisma.user.upsert({
+        where: { id: userId },
+        update: {},
+        create: {
+          id: userId!,
+          email: 'demo@zypher.com',
+          name: 'Demo User',
           role: 'STUDENT',
         },
       });
@@ -42,13 +42,22 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const userId = isAuthEnabled() ? undefined : 'demo-user-123';
+    
+    if (isAuthEnabled()) {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId: clerkUserId } = await auth();
+      if (!clerkUserId) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
     }
 
     const body = await request.json();
     const { name, phone, bio, examType, targetExam } = body;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },

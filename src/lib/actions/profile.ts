@@ -1,12 +1,21 @@
 'use server';
 
 import { prisma } from '@/lib/db';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
 import { revalidatePath } from 'next/cache';
 
+function getUserId(): string {
+  return 'demo-user-123';
+}
+
 export async function getUserProfile() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
   
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -22,8 +31,13 @@ export async function updateUserProfile(data: {
   phone?: string;
   bio?: string;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Not authenticated');
+  }
 
   const user = await prisma.user.update({
     where: { id: userId },
@@ -38,8 +52,13 @@ export async function updateUserProfile(data: {
 }
 
 export async function updateStudyStreak() {
-  const { userId } = await auth();
-  if (!userId) return;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

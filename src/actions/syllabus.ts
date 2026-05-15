@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs/server';
 
 export async function getGATESubjects(branchCode: string = 'CS') {
   const branch = await prisma.gATEBranch.findUnique({ where: { code: branchCode } });

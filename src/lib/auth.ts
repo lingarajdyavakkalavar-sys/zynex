@@ -1,7 +1,29 @@
-import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/prisma';
+import { isAuthEnabled } from './auth-config';
 
 export async function getUser() {
+  if (!isAuthEnabled()) {
+    const user = await prisma.user.findUnique({
+      where: { id: 'demo-user-123' },
+    });
+    
+    if (!user) {
+      return await prisma.user.upsert({
+        where: { id: 'demo-user-123' },
+        update: {},
+        create: {
+          id: 'demo-user-123',
+          email: 'demo@zypher.com',
+          name: 'Demo User',
+          role: 'STUDENT',
+        },
+      });
+    }
+    
+    return user;
+  }
+
+  const { auth, currentUser } = await import('@clerk/nextjs/server');
   const { userId } = await auth();
   
   if (!userId) {
@@ -16,11 +38,36 @@ export async function getUser() {
 }
 
 export async function getCurrentUser() {
-  const clerkUser = await currentUser();
-  return clerkUser;
+  if (!isAuthEnabled()) {
+    return {
+      id: 'demo-user-123',
+      fullName: 'Demo User',
+      firstName: 'Demo',
+      lastName: 'User',
+      emailAddresses: [{ emailAddress: 'demo@zypher.com' }],
+      imageUrl: null,
+    };
+  }
+
+  const { currentUser } = await import('@clerk/nextjs/server');
+  return await currentUser();
 }
 
 export async function createOrUpdateUser() {
+  if (!isAuthEnabled()) {
+    return await prisma.user.upsert({
+      where: { id: 'demo-user-123' },
+      update: {},
+      create: {
+        id: 'demo-user-123',
+        email: 'demo@zypher.com',
+        name: 'Demo User',
+        role: 'STUDENT',
+      },
+    });
+  }
+
+  const { currentUser } = await import('@clerk/nextjs/server');
   const clerkUser = await currentUser();
   
   if (!clerkUser) {
@@ -44,4 +91,11 @@ export async function createOrUpdateUser() {
   });
 
   return user;
+}
+
+export function getUserId(): string {
+  if (!isAuthEnabled()) {
+    return 'demo-user-123';
+  }
+  return '';
 }

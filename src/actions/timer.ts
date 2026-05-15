@@ -2,11 +2,20 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export async function startStudyTimer(topicId?: string, sessionType = 'study') {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Unauthorized');
+  }
 
   await prisma.studyTimer.updateMany({
     where: { userId, isActive: true },
@@ -15,7 +24,7 @@ export async function startStudyTimer(topicId?: string, sessionType = 'study') {
 
   return prisma.studyTimer.create({
     data: {
-      userId,
+      userId: userId!,
       topicId,
       sessionType,
       startTime: new Date(),
@@ -95,8 +104,13 @@ export async function stopStudyTimer(timerId: string) {
 }
 
 export async function getActiveTimer() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   return prisma.studyTimer.findFirst({
     where: { userId, isActive: true },
@@ -105,8 +119,13 @@ export async function getActiveTimer() {
 }
 
 export async function getStudyTimerHistory(limit = 50) {
-  const { userId } = await auth();
-  if (!userId) return [];
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return [];
+  }
 
   return prisma.studyTimer.findMany({
     where: { userId },
@@ -116,8 +135,13 @@ export async function getStudyTimerHistory(limit = 50) {
 }
 
 export async function getStudyStats() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

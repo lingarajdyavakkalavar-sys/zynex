@@ -1,8 +1,12 @@
 'use server';
 
 import { prisma } from '@/lib/db';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
 import { revalidatePath } from 'next/cache';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export async function getGATETopicsForMCQ(options: {
   subjectId?: string;
@@ -115,8 +119,13 @@ export async function submitMCQAnswer(data: {
   timeSpent: number;
   quizSessionId?: string;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Not authenticated');
+  }
 
   const mcq = await prisma.mCQ.findUnique({
     where: { id: data.mcqId },
@@ -128,7 +137,7 @@ export async function submitMCQAnswer(data: {
 
   await prisma.mCQAttempt.create({
     data: {
-      userId,
+      userId: userId!,
       mcqId: data.mcqId,
       quizSessionId: data.quizSessionId,
       selectedAnswer: data.selectedIndex,
@@ -142,8 +151,13 @@ export async function submitMCQAnswer(data: {
 }
 
 export async function getQuizHistory(limit: number = 10) {
-  const { userId } = await auth();
-  if (!userId) return [];
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return [];
+  }
 
   const sessions = await prisma.quizSession.findMany({
     where: { userId },

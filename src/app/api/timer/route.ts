@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { startStudyTimer, pauseStudyTimer, resumeStudyTimer, stopStudyTimer, getActiveTimer } from '@/actions/timer';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (isAuthEnabled()) {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId } = await auth();
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     const timer = await getActiveTimer();
@@ -19,9 +22,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (isAuthEnabled()) {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId } = await auth();
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     const body = await req.json();

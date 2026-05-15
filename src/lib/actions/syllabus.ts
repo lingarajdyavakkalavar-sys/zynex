@@ -1,8 +1,12 @@
 'use server';
 
 import { prisma } from '@/lib/db';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
 import { revalidatePath } from 'next/cache';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export const GATE_CSE_SUBJECTS = [
   'Engineering Mathematics',
@@ -80,19 +84,24 @@ export async function updateTopicProgress(data: {
   status: string;
   masteryScore?: number;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
+  const userId = isAuthEnabled() ? null : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Not authenticated');
+  }
 
   if (data.examType === 'GATE') {
     const topicProgress = await prisma.topicProgress.upsert({
-      where: { userId_gateTopicId: { userId, gateTopicId: data.topicId } },
+      where: { userId_gateTopicId: { userId: userId!, gateTopicId: data.topicId } },
       update: {
         status: data.status as any,
         masteryScore: data.masteryScore ?? undefined,
         lastStudiedAt: new Date(),
       },
       create: {
-        userId,
+        userId: userId!,
         examType: data.examType,
         status: data.status as any,
         masteryScore: data.masteryScore ?? 0,

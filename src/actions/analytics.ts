@@ -1,11 +1,20 @@
 'use server';
 
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export async function getDashboardAnalytics() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -56,15 +65,20 @@ export async function getDashboardAnalytics() {
 }
 
 export async function getTopicAnalytics(gateTopicId: string) {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   const progress = await prisma.topicProgress.findUnique({
-    where: { userId_gateTopicId: { userId, gateTopicId } },
+    where: { userId_gateTopicId: { userId: userId!, gateTopicId } },
   });
 
   const totalStudyTime = await prisma.studyTimer.aggregate({
-    where: { userId },
+    where: { userId: userId || undefined },
     _sum: { duration: true },
   });
 

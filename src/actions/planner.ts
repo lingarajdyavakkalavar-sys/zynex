@@ -2,11 +2,20 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { isAuthEnabled } from '@/lib/auth-config';
+
+function getUserId(): string {
+  return 'demo-user-123';
+}
 
 export async function getStudyPlanner() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   return prisma.studyPlanner.findFirst({
     where: { userId, isActive: true },
@@ -20,8 +29,13 @@ export async function createStudyPlanner(data: {
   examType: string;
   branchCode?: string;
 }) {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Unauthorized');
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error('Unauthorized');
+  }
 
   await prisma.studyPlanner.updateMany({
     where: { userId, isActive: true },
@@ -29,13 +43,18 @@ export async function createStudyPlanner(data: {
   });
 
   return prisma.studyPlanner.create({
-    data: { ...data, userId, examType: data.examType as any },
+    data: { ...data, userId: userId!, examType: data.examType as any },
   });
 }
 
 export async function calculateReadinessScore() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const userId = isAuthEnabled() ? undefined : getUserId();
+  
+  if (isAuthEnabled()) {
+    const { auth } = await import('@clerk/nextjs/server');
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+  }
 
   const [topicProgress, mcqAttempts, user] = await Promise.all([
     prisma.topicProgress.findMany({ where: { userId } }),

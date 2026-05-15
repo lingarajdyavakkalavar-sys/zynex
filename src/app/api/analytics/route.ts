@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/prisma';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = isAuthEnabled() ? undefined : 'demo-user-123';
+    
+    if (isAuthEnabled()) {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId: clerkUserId } = await auth();
+      if (!clerkUserId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
-    const userData = await prisma.user.findUnique({
+    const userData = userId ? await prisma.user.findUnique({
       where: { id: userId },
       select: { examType: true, studyHours: true, streakDays: true },
-    });
+    }) : null;
 
     const examType = userData?.examType || 'GATE';
 
