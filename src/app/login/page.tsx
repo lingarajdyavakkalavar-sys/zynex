@@ -7,35 +7,12 @@ import { motion } from 'framer-motion';
 import { GraduationCap, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { isAuthEnabled } from '@/lib/auth-config';
 
 function LoadingState() {
   return (
     <div className="min-h-screen bg-[#050508] flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-[#0066cc] border-t-transparent rounded-full animate-spin" />
     </div>
-  );
-}
-
-function ClerkLogin({ redirectUrl }: { redirectUrl: string }) {
-  const { SignIn } = require('@clerk/nextjs');
-  const [isSignUp] = useState(false);
-
-  return (
-    <>
-      <SignIn 
-        routing="virtual"
-        afterSignInUrl={redirectUrl}
-        signUpFallbackRedirectUrl={redirectUrl}
-      />
-      <div className="mt-6 text-center">
-        <span className="text-[#8a8a9a]">Don&apos;t have an account? </span>
-        <Link href="/sign-up" className="text-[#0066cc] hover:underline">
-          Sign up
-        </Link>
-      </div>
-    </>
   );
 }
 
@@ -47,8 +24,7 @@ function MockLogin({ redirectUrl }: { redirectUrl: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Mock login - in production, integrate with your auth system
-    localStorage.setItem('mockUser', email);
+    localStorage.setItem('mockUser', email || 'demo@zypher.com');
     router.push(redirectUrl);
   };
 
@@ -74,9 +50,8 @@ function MockLogin({ redirectUrl }: { redirectUrl: string }) {
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8a9a]" />
           <Input
             type="password"
-            placeholder="••••••••"
+            placeholder="Any password works"
             className="pl-10 bg-[#1a1a24] border-[#2a2a3a] text-white"
-            required
           />
         </div>
       </div>
@@ -99,8 +74,8 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard';
-  const authEnabled = isAuthEnabled();
 
+  // Always use mock login in demo mode
   return (
     <div className="min-h-screen bg-[#050508] flex">
       <div className="flex-1 flex items-center justify-center p-8">
@@ -121,11 +96,7 @@ function LoginContent() {
             Sign in to continue your learning
           </p>
 
-          {authEnabled ? (
-            <ClerkLogin redirectUrl={redirectUrl} />
-          ) : (
-            <MockLogin redirectUrl={redirectUrl} />
-          )}
+          <MockLogin redirectUrl={redirectUrl} />
         </motion.div>
       </div>
 
