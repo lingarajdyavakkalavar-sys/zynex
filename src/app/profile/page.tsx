@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/app-layout';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from '@/hooks/use-user';
 
 interface UserProfile {
   id: string;

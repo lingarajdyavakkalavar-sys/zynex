@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from '@/hooks/use-user';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, Calculator, ChevronLeft, ChevronRight, Flag, Bookmark, Pause, Play, 
@@ -75,8 +75,8 @@ export default function GateTestPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!isSignedIn) router.push('/login');
-  }, [isSignedIn, router]);
+    // Demo mode - allow access without auth
+  }, []);
 
   useEffect(() => {
     if (testMode === 'test' && timeRemaining > 0 && !isPaused) {

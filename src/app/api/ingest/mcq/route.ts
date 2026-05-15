@@ -21,7 +21,6 @@ interface MCQInput {
 
 export async function POST(req: NextRequest) {
   try {
-    // Accept JSON body
     const contentType = req.headers.get('content-type') || '';
     
     let mcqs: MCQInput[] = [];
@@ -44,7 +43,6 @@ export async function POST(req: NextRequest) {
       year = body.year;
       paperCode = body.paperCode;
     } else if (contentType.includes('multipart/form-data')) {
-      // Handle form data with file
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
       const examTypeParam = formData.get('examType') as string;
@@ -52,7 +50,6 @@ export async function POST(req: NextRequest) {
       if (examTypeParam) examType = examTypeParam as 'GATE' | 'CAT';
       
       if (file) {
-        // For now, just acknowledge file received - full PDF parsing requires OpenAI
         return NextResponse.json({ 
           message: 'File received. Full PDF parsing requires OpenAI integration.',
           saved: 0 
@@ -60,21 +57,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (mcqs.length === 0) {
+    if (!mcqs || mcqs.length === 0) {
       return NextResponse.json({ message: 'No MCQs provided', saved: 0 });
-    }
-      mcqs: MCQInput[];
-      examType: 'GATE' | 'CAT';
-      gateTopicId?: string;
-      catTopicId?: string;
-      gateBranchCode?: string;
-      catSectionCode?: string;
-      year?: number;
-      paperCode?: string;
-    };
-
-    if (!mcqs || !Array.isArray(mcqs) || mcqs.length === 0) {
-      return NextResponse.json({ error: 'mcqs array is required' }, { status: 400 });
     }
 
     if (!examType) {
@@ -116,14 +100,11 @@ export async function POST(req: NextRequest) {
 
     const succeeded = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
     const failed = results.filter(r => r.status === 'fulfilled' && !r.value.success).length;
-    const errors = results.filter(r => r.status === 'rejected');
 
     return NextResponse.json({
       total: mcqs.length,
       succeeded,
       failed,
-      errors: errors.length > 0 ? errors.map(e => e.reason) : undefined,
-      results: results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: 'unknown' }),
     });
   } catch (error) {
     console.error('MCQ ingestion error:', error);

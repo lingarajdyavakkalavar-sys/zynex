@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from '@/hooks/use-user';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,

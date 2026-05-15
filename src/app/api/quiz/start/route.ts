@@ -145,13 +145,11 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    // Demo mode - return empty sessions
+    const DEMO_USER_ID = 'demo-user-123';
+    
     const sessions = await prisma.quizSession.findMany({
-      where: { userId },
+      where: { userId: DEMO_USER_ID },
       orderBy: { startedAt: 'desc' },
       take: 10,
     });

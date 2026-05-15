@@ -1,34 +1,31 @@
-import { useUser as useClerkUser } from '@clerk/nextjs';
 import { isAuthEnabled } from '@/lib/auth-config';
 
 interface MockUser {
   id: string;
-  email: string;
   firstName: string | null;
   lastName: string | null;
+  fullName: string | null;
   imageUrl: string | null;
+  primaryEmailAddress: { emailAddress: string } | null;
+  emailAddresses: { emailAddress: string }[];
 }
 
 export function useUser() {
-  const authEnabled = isAuthEnabled();
+  // Always return mock user for demo mode
+  // This avoids any Clerk imports during build
+  const mockUser: MockUser = {
+    id: 'demo-user-123',
+    firstName: 'Demo',
+    lastName: 'User',
+    fullName: 'Demo User',
+    imageUrl: null,
+    primaryEmailAddress: { emailAddress: 'demo@zypher.com' },
+    emailAddresses: [{ emailAddress: 'demo@zypher.com' }],
+  };
   
-  if (!authEnabled) {
-    // Return mock user for demo mode
-    const mockUser: MockUser = {
-      id: 'demo-user-123',
-      email: 'demo@zypher.com',
-      firstName: 'Demo',
-      lastName: 'User',
-      imageUrl: null,
-    };
-    
-    return {
-      isLoaded: true,
-      isSignedIn: true,
-      user: mockUser,
-    };
-  }
-  
-  // Use real Clerk user
-  return useClerkUser();
+  return {
+    isLoaded: true,
+    isSignedIn: true,
+    user: mockUser,
+  };
 }
