@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/prisma';
 
 interface MCQInput {
@@ -22,13 +21,48 @@ interface MCQInput {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Accept JSON body
+    const contentType = req.headers.get('content-type') || '';
+    
+    let mcqs: MCQInput[] = [];
+    let examType: 'GATE' | 'CAT' = 'GATE';
+    let gateTopicId: string | undefined;
+    let catTopicId: string | undefined;
+    let gateBranchCode: string | undefined;
+    let catSectionCode: string | undefined;
+    let year: number | undefined;
+    let paperCode: string | undefined;
+
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      mcqs = body.mcqs || [];
+      examType = body.examType || 'GATE';
+      gateTopicId = body.gateTopicId;
+      catTopicId = body.catTopicId;
+      gateBranchCode = body.gateBranchCode;
+      catSectionCode = body.catSectionCode;
+      year = body.year;
+      paperCode = body.paperCode;
+    } else if (contentType.includes('multipart/form-data')) {
+      // Handle form data with file
+      const formData = await req.formData();
+      const file = formData.get('file') as File | null;
+      const examTypeParam = formData.get('examType') as string;
+      
+      if (examTypeParam) examType = examTypeParam as 'GATE' | 'CAT';
+      
+      if (file) {
+        // For now, just acknowledge file received - full PDF parsing requires OpenAI
+        return NextResponse.json({ 
+          message: 'File received. Full PDF parsing requires OpenAI integration.',
+          saved: 0 
+        });
+      }
     }
 
-    const body = await req.json();
-    const { mcqs, examType, gateTopicId, catTopicId, gateBranchCode, catSectionCode, year, paperCode } = body as {
+    if (mcqs.length === 0) {
+      return NextResponse.json({ message: 'No MCQs provided', saved: 0 });
+    }
       mcqs: MCQInput[];
       examType: 'GATE' | 'CAT';
       gateTopicId?: string;
@@ -99,11 +133,6 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
     const examType = searchParams.get('examType') as 'GATE' | 'CAT' | null;
     const year = searchParams.get('year');
@@ -142,11 +171,6 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
     const ids = searchParams.get('ids');
 

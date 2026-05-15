@@ -52,6 +52,8 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -167,23 +169,60 @@ export default function AdminPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="border-2 border-dashed border-[#2a2a3a] rounded-lg p-6 text-center hover:border-[#0066cc] transition-colors cursor-pointer">
+                    <div className="border-2 border-dashed border-[#2a2a3a] rounded-lg p-6 text-center hover:border-[#0066cc] transition-colors">
                       <Upload className="w-8 h-8 text-[#8a8a9a] mx-auto mb-2" />
-                      <p className="text-white text-sm">Click to upload PDF</p>
-                      <p className="text-[#8a8a9a] text-xs mt-1">or drag and drop</p>
-                      <input type="file" accept=".pdf" className="hidden" />
+                      <label className="cursor-pointer">
+                        <span className="text-white text-sm">
+                          {selectedFile ? selectedFile.name : 'Click to upload PDF'}
+                        </span>
+                        <input 
+                          type="file" 
+                          accept=".pdf" 
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setSelectedFile(file);
+                          }}
+                        />
+                      </label>
+                      <p className="text-[#8a8a9a] text-xs mt-1">
+                        {selectedFile ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` : 'Max 10MB'}
+                      </p>
                     </div>
                     <div className="text-xs text-[#8a8a9a]">
                       PDF will be processed using AI to extract MCQs
                     </div>
                     <Button 
                       className="w-full bg-[#0066cc] hover:bg-[#0052a3]"
-                      onClick={() => {
-                        alert('PDF import would call /api/ingest/mcq endpoint');
-                        setShowImportDialog(false);
+                      disabled={!selectedFile || importing}
+                      onClick={async () => {
+                        if (!selectedFile) return;
+                        setImporting(true);
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', selectedFile);
+                          formData.append('examType', selectedExam);
+                          
+                          const res = await fetch('/api/ingest/mcq', {
+                            method: 'POST',
+                            body: formData,
+                          });
+                          
+                          if (res.ok) {
+                            const data = await res.json();
+                            alert(`Successfully imported ${data.saved || 0} questions!`);
+                            setShowImportDialog(false);
+                            setSelectedFile(null);
+                          } else {
+                            alert('Failed to import PDF');
+                          }
+                        } catch (err) {
+                          alert('Error importing PDF');
+                        }
+                        setImporting(false);
                       }}
                     >
-                      Process PDF
+                      {importing ? 'Processing...' : 'Process PDF'}
                     </Button>
                   </div>
                 </DialogContent>

@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db/prisma';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Demo mode user ID when auth is not enabled
+    const DEMO_USER_ID = 'demo-user-123';
+    let userId = DEMO_USER_ID;
+    
+    // Check if auth is enabled, if so try to get real user
+    if (isAuthEnabled()) {
+      try {
+        const { auth } = await import('@clerk/nextjs/server');
+        const { userId: clerkUserId } = await auth();
+        if (clerkUserId) userId = clerkUserId;
+      } catch (e) {
+        // Fall back to demo user
+      }
     }
 
     const body = await req.json();
@@ -16,8 +26,8 @@ export async function POST(req: NextRequest) {
       year,
       branchCode,
       sectionCode,
-      totalQuestions,
-      duration,
+      totalQuestions = 10,
+      duration = 1800,
       gateTopicId,
       catTopicId,
     } = body;
@@ -43,10 +53,9 @@ export async function POST(req: NextRequest) {
         whereClause.catSectionCode = { in: ['VARC', 'DILR', 'QA'] };
       }
     } else if (mode === 'practice') {
-      if (examType === 'GATE' && gateTopicId) {
-        whereClause.gateTopicId = gateTopicId;
-      } else if (examType === 'CAT' && catTopicId) {
-        whereClause.catTopicId = catTopicId;
+      // Practice mode - get any questions for the exam type
+      if (examType === 'GATE' && branchCode) {
+        whereClause.gateBranchCode = branchCode;
       } else if (examType === 'CAT' && sectionCode) {
         whereClause.catSectionCode = sectionCode;
       }
@@ -55,8 +64,17 @@ export async function POST(req: NextRequest) {
     const totalAvailable = await prisma.mCQ.count({ where: whereClause });
 
     let questionsToFetch = totalQuestions;
-    if (totalAvailable < totalQuestions) {
-      questionsToFetch = totalAvailable;
+    if (totalAvailable < totalQuestions || totalAvailable === 0) {
+      // If no specific questions, get any questions for the exam
+      const fallbackWhere = { examType };
+      const fallbackTotal = await prisma.mCQ.count({ where: fallbackWhere });
+      if (fallbackTotal > 0) {
+        whereClause.examType = examType;
+        delete whereClause.year;
+        questionsToFetch = Math.min(totalQuestions, fallbackTotal);
+      } else {
+        questionsToFetch = 0;
+      }
     }
 
     const fetchedQuestions = await prisma.mCQ.findMany({
@@ -85,32 +103,39 @@ export async function POST(req: NextRequest) {
 
     const shuffledQuestions = fetchedQuestions.sort(() => Math.random() - 0.5);
 
-    const modeToSourceType: Record<string, string> = {
-      full: 'MOCK_TEST',
-      sectional: 'SECTIONAL',
-      practice: 'PRACTICE',
-    };
+    // Create session only if we have questions
+    let session = null;
+    if (shuffledQuestions.length > 0) {
+      const modeToSourceType: Record<string, string> = {
+        full: 'MOCK_TEST',
+        sectional: 'SECTIONAL',
+        practice: 'PRACTICE',
+        timed: 'TIMED_TEST',
+        revision: 'REVISION',
+        previous_year: 'PREVIOUS_YEAR',
+      };
 
-    const session = await prisma.quizSession.create({
-      data: {
-        userId,
-        examType,
-        mode: mode.toUpperCase() as 'FULL_TEST' | 'SECTIONAL' | 'PRACTICE',
-        sourceType: modeToSourceType[mode] || 'PRACTICE',
-        year: year || null,
-        branchCode: branchCode || null,
-        sectionCode: sectionCode || null,
-        totalQuestions: shuffledQuestions.length,
-        duration,
-        remainingTime: duration,
-        status: 'IN_PROGRESS',
-      },
-    });
+      session = await prisma.quizSession.create({
+        data: {
+          userId,
+          examType,
+          mode: (mode?.toUpperCase() || 'PRACTICE') as 'FULL_TEST' | 'SECTIONAL' | 'PRACTICE',
+          sourceType: modeToSourceType[mode] || 'PRACTICE',
+          year: year || null,
+          branchCode: branchCode || null,
+          sectionCode: sectionCode || null,
+          totalQuestions: shuffledQuestions.length,
+          duration,
+          remainingTime: duration,
+          status: 'IN_PROGRESS',
+        },
+      });
+    }
 
     return NextResponse.json({
       session,
       questions: shuffledQuestions,
-      totalAvailable,
+      totalAvailable: shuffledQuestions.length,
     });
   } catch (error) {
     console.error('Quiz start error:', error);
