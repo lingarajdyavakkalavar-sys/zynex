@@ -3,9 +3,12 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SignIn } from '@clerk/nextjs';
 import { motion } from 'framer-motion';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 function LoadingState() {
   return (
@@ -15,11 +18,88 @@ function LoadingState() {
   );
 }
 
+function ClerkLogin({ redirectUrl }: { redirectUrl: string }) {
+  const { SignIn } = require('@clerk/nextjs');
+  const [isSignUp] = useState(false);
+
+  return (
+    <>
+      <SignIn 
+        routing="virtual"
+        afterSignInUrl={redirectUrl}
+        signUpFallbackRedirectUrl={redirectUrl}
+      />
+      <div className="mt-6 text-center">
+        <span className="text-[#8a8a9a]">Don&apos;t have an account? </span>
+        <Link href="/sign-up" className="text-[#0066cc] hover:underline">
+          Sign up
+        </Link>
+      </div>
+    </>
+  );
+}
+
+function MockLogin({ redirectUrl }: { redirectUrl: string }) {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    // Mock login - in production, integrate with your auth system
+    localStorage.setItem('mockUser', email);
+    router.push(redirectUrl);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-sm text-[#8a8a9a]">Email</label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8a9a]" />
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="pl-10 bg-[#1a1a24] border-[#2a2a3a] text-white"
+            required
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm text-[#8a8a9a]">Password</label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8a9a]" />
+          <Input
+            type="password"
+            placeholder="••••••••"
+            className="pl-10 bg-[#1a1a24] border-[#2a2a3a] text-white"
+            required
+          />
+        </div>
+      </div>
+      <Button 
+        type="submit" 
+        className="w-full bg-[#0066cc] hover:bg-[#0052a3]"
+        disabled={loading}
+      >
+        {loading ? 'Signing in...' : 'Sign In'}
+        <ArrowRight className="ml-2 w-4 h-4" />
+      </Button>
+      <p className="text-center text-sm text-[#8a8a9a]">
+        Demo mode - enter any email to continue
+      </p>
+    </form>
+  );
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard';
-  const [isSignUp] = useState(false);
+  const authEnabled = isAuthEnabled();
 
   return (
     <div className="min-h-screen bg-[#050508] flex">
@@ -33,30 +113,19 @@ function LoginContent() {
             <div className="w-12 h-12 rounded-sm bg-gradient-to-br from-[#0066cc] to-[#003d80] flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
-            <span className="text-white font-semibold text-2xl">StudyHub</span>
+            <span className="text-white font-semibold text-2xl">Zypher</span>
           </div>
 
-          <h1 className="text-3xl font-bold text-white mb-2">
-            {isSignUp ? 'Create your account' : 'Welcome back'}
-          </h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
           <p className="text-[#8a8a9a] mb-8">
-            {isSignUp 
-              ? 'Start your competitive exam preparation journey'
-              : 'Sign in to continue your learning'}
+            Sign in to continue your learning
           </p>
 
-          <SignIn 
-            routing="virtual"
-            afterSignInUrl={redirectUrl}
-            signUpFallbackRedirectUrl={redirectUrl}
-          />
-          
-          <div className="mt-6 text-center">
-            <span className="text-[#8a8a9a]">Don't have an account? </span>
-            <Link href="/sign-up" className="text-[#0066cc] hover:underline">
-              Sign up
-            </Link>
-          </div>
+          {authEnabled ? (
+            <ClerkLogin redirectUrl={redirectUrl} />
+          ) : (
+            <MockLogin redirectUrl={redirectUrl} />
+          )}
         </motion.div>
       </div>
 

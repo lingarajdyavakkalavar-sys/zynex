@@ -1,9 +1,18 @@
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const hasValidClerkKey = () => {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  return key && key.startsWith('pk_test_') && key.length > 20;
+};
+
 export default async function middleware(req: NextRequest) {
+  if (!hasValidClerkKey()) {
+    return NextResponse.next();
+  }
+
   try {
+    const { auth } = await import('@clerk/nextjs/server');
     const { userId } = await auth();
     const pathname = req.nextUrl.pathname;
     
