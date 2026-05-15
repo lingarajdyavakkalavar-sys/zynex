@@ -1,5 +1,5 @@
 import { useUser as useClerkUser } from '@clerk/nextjs';
-import { isAuthEnabled } from './auth-config';
+import { isAuthEnabled } from '@/lib/auth-config';
 
 interface MockUser {
   id: string;
