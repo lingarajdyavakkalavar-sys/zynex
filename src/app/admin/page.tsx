@@ -51,6 +51,7 @@ export default function AdminPage() {
   const [selectedExam, setSelectedExam] = useState('GATE');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -117,7 +118,7 @@ export default function AdminPage() {
               <p className="text-[#8a8a9a]">Manage and publish course syllabi</p>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" className="border-[#1f1f2e] text-white">
+              <Button variant="outline" className="border-[#1f1f2e] text-white" onClick={() => setShowImportDialog(true)}>
                 <Upload className="w-4 h-4 mr-2" />
                 Import PDF
               </Button>
@@ -144,6 +145,50 @@ export default function AdminPage() {
                   </div>
                 </DialogContent>
               </Dialog>
+              
+              <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                <DialogContent className="bg-[#0a0a0f] border-[#1f1f2e] max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">Import Questions from PDF</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-[#8a8a9a]">Select Exam</Label>
+                      <Select value={selectedExam} onValueChange={setSelectedExam}>
+                        <SelectTrigger className="bg-[#1a1a24] border-[#1f1f2e] text-white mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0a0a0f] border-[#1f1f2e]">
+                          {EXAMS.map(exam => (
+                            <SelectItem key={exam.id} value={exam.id} className="text-white">
+                              {exam.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="border-2 border-dashed border-[#2a2a3a] rounded-lg p-6 text-center hover:border-[#0066cc] transition-colors cursor-pointer">
+                      <Upload className="w-8 h-8 text-[#8a8a9a] mx-auto mb-2" />
+                      <p className="text-white text-sm">Click to upload PDF</p>
+                      <p className="text-[#8a8a9a] text-xs mt-1">or drag and drop</p>
+                      <input type="file" accept=".pdf" className="hidden" />
+                    </div>
+                    <div className="text-xs text-[#8a8a9a]">
+                      PDF will be processed using AI to extract MCQs
+                    </div>
+                    <Button 
+                      className="w-full bg-[#0066cc] hover:bg-[#0052a3]"
+                      onClick={() => {
+                        alert('PDF import would call /api/ingest/mcq endpoint');
+                        setShowImportDialog(false);
+                      }}
+                    >
+                      Process PDF
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
               <Button onClick={() => setShowAddDialog(true)} className="bg-[#0066cc] hover:bg-[#0052a3]">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Syllabus
